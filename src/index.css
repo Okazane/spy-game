@@ -1,0 +1,318 @@
+@import "tailwindcss";
+
+/* ============================================================
+   NOIR-TACTILE DETECTIVE DESIGN SYSTEM
+   Bảng màu mực in báo chí, giấy Kraft ngả vàng, con dấu cao su
+   ============================================================ */
+
+:root {
+  /* Rich Noir & Kraft Palette — Tối ưu độ sáng và độ trong trẻo */
+  --ink-primary: #181410;
+  --ink-secondary: #3a2e22;
+  --ink-muted: #675543;
+  --ink-faint: #917b66;
+
+  --color-kraft: #c8a165;
+  --color-kraft-dark: #8c6530;
+  --color-paper: #faf5eb;
+  --color-paper-light: #ffffff;
+  --color-stamp-red: #a11111;
+  --color-tape: rgba(238, 226, 155, 0.88);
+
+  /* Typography System (Đảm bảo 100% tiếng Việt có dấu) */
+  --font-display: "Playfair Display", Georgia, serif;
+  --font-body: "IBM Plex Mono", monospace;
+  --font-stamp: "Bungee", cursive, monospace;
+  --font-hand: "Patrick Hand", cursive;
+
+  /* Căn chỉnh khung ảnh Polaroid trên bàn gỗ */
+  --pol-x: 50.5%;
+  --pol-y: 52.8%;
+  --pol-w: clamp(170px, 21.8vw, 245px);
+  --pol-h: clamp(170px, 21.8vw, 245px);
+  --pol-rot: 3.4deg;
+
+  /* Easing vật lý cơ học */
+  --ease-bounce: cubic-bezier(0.25, 1.5, 0.5, 1);
+  --ease-snap: cubic-bezier(0.2, 0, 0, 1);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+*::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+button {
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  background-color: #231b14;
+  color: var(--ink-primary);
+  font-family: var(--font-body);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+
+#root {
+  min-height: 100dvh;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: stretch;
+  background-color: #231b14;
+  position: relative;
+  overflow-x: hidden;
+}
+
+/* ============================================================
+   DESKTOP BACKDROP NỀN NGOÀI KHUNG 440PX (SÁNG VÀ RÕ NÉT)
+   ============================================================ */
+.desktop-backdrop {
+  position: fixed;
+  inset: 0;
+  background-image: url('/assets/lobby.webp');
+  background-size: cover;
+  background-position: center;
+  filter: brightness(0.72) saturate(1.05);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================================
+   LỚP PHỦ QUANG HỌC: TẮT BỎ BÓNG MỜ VIGNETTE & FILM GRAIN
+   - Loại bỏ triệt để hiện tượng bóng mờ làm tối màn hình
+   ============================================================ */
+.film-grain {
+  display: none !important;
+}
+
+.vignette {
+  display: none !important;
+}
+
+/* Chớp flash máy ảnh 100ms */
+.camera-flash {
+  position: fixed;
+  inset: 0;
+  background-color: #ffffff;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 996;
+  transition: opacity 100ms linear;
+}
+.camera-flash.active {
+  opacity: 0.95;
+}
+
+/* Rung giật màn hình khi đóng con dấu */
+.screen-shake {
+  animation: shakeAnim 0.25s steps(3);
+}
+@keyframes shakeAnim {
+  0% { transform: translate(0, 0); }
+  25% { transform: translate(-4px, 3px); }
+  50% { transform: translate(3px, -4px); }
+  75% { transform: translate(-2px, -2px); }
+  100% { transform: translate(0, 0); }
+}
+
+/* ============================================================
+   CỬA PHÒNG TỐI (DARKROOM SHUTTERS)
+   ============================================================ */
+.darkroom-shutter {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 50.5%;
+  background: #080605;
+  z-index: 999;
+  pointer-events: none;
+  transition: transform 180ms var(--ease-snap);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.98);
+}
+.shutter-left {
+  left: 0;
+  transform: translateX(-100%);
+  border-right: 2px solid #231b12;
+}
+.shutter-right {
+  right: 0;
+  transform: translateX(100%);
+  border-left: 2px solid #231b12;
+}
+.shutters-closed .shutter-left,
+.shutters-closed .shutter-right {
+  transform: translateX(0);
+  pointer-events: auto;
+}
+
+/* ============================================================
+   KHUNG ỨNG DỤNG MOBILE CHUẨN SAFE-AREA
+   ============================================================ */
+.app-mobile-frame {
+  width: 100%;
+  max-width: 440px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  position: relative;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+  display: flex;
+  flex-direction: column;
+  z-index: 10;
+  background-color: var(--color-paper);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+
+.app-mobile-frame::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+@media (max-width: 480px) {
+  .app-mobile-frame {
+    max-width: 100%;
+    box-shadow: none;
+  }
+}
+
+/* ============================================================
+   THẺ HỒ SƠ & BÓNG CỨNG (HARD PHOTOCOPY SHADOWS)
+   ============================================================ */
+.game-card-tactile {
+  background: var(--color-paper-light);
+  border-radius: 3px;
+  border: 1.5px solid #281e15;
+  box-shadow: 4px 4px 0 #18120c;
+  color: var(--ink-primary);
+}
+
+.card-party-white {
+  background: var(--color-paper);
+  border-radius: 3px;
+  border: 1.5px solid #281e15;
+  box-shadow: 4px 4px 0 #18120c;
+}
+
+/* ============================================================
+   NÚT BẤM KRAFT / MANILA SHIPPING TAG
+   ============================================================ */
+.btn-party-green,
+.btn-kraft-stamp {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: #1a1209;
+  background: #c8a165 linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.12) 100%);
+  border: 1.5px solid #7c5c2d;
+  box-shadow: 3px 4px 0 #18120c;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: transform 0.08s var(--ease-bounce), box-shadow 0.08s var(--ease-snap);
+}
+
+.btn-party-green:active,
+.btn-kraft-stamp:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 #18120c;
+}
+
+/* Nút con dấu đỏ BẮT GIỮ */
+.btn-stamp-red {
+  background: #a11111;
+  color: #ffffff;
+  border: 2px double #fde8e8;
+  box-shadow: 3px 4px 0 #3b0505;
+  font-family: var(--font-display);
+  font-weight: 900;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: transform 0.08s var(--ease-bounce), box-shadow 0.08s var(--ease-snap);
+}
+.btn-stamp-red:active {
+  transform: translate(3px, 3px);
+  box-shadow: 0 0 0 #3b0505;
+}
+
+/* Nút Stepper tăng giảm */
+.game-stepper-btn {
+  background: #fdfcf8;
+  border: 1.5px solid #281e15;
+  box-shadow: 2px 2px 0 #18120c;
+  color: var(--ink-primary);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: transform 0.06s ease, box-shadow 0.06s ease;
+}
+.game-stepper-btn:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 #18120c;
+}
+.game-stepper-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Băng dính Masking Tape răng cưa 2 đầu */
+.masking-tape {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%) rotate(0.8deg);
+  width: 110px;
+  height: 20px;
+  background-color: var(--color-tape);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  opacity: 0.88;
+  clip-path: polygon(
+    0% 0%, 4px 3px, 0% 6px, 4px 9px, 0% 12px, 4px 15px, 0% 18px, 4px 20px, 0% 20px,
+    100% 20px, 96% 17px, 100% 14px, 96% 11px, 100% 8px, 96% 5px, 100% 2px, 96% 0%, 100% 0%
+  );
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* Con trỏ máy đánh chữ */
+.typewriter-cursor {
+  display: inline-block;
+  width: 0.52em;
+  background-color: var(--ink-primary);
+  margin-left: 2px;
+  animation: blinkCursor 0.75s steps(1) infinite;
+}
+@keyframes blinkCursor {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
