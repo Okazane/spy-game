@@ -11,11 +11,11 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'fonts/**/*'],
       manifest: {
-        name: 'Gián Điệp 3 Phe',
-        short_name: 'Gián Điệp',
-        description: 'Trò chơi suy luận xã hội 3 phe: Dân thường, Gián điệp, Mũ Trắng',
-        theme_color: '#0f0e1a',
-        background_color: '#0f0e1a',
+        name: 'Ai Là Gián Điệp? — Trò Chơi Hội Bạn Thân',
+        short_name: 'Ai Là Gián Điệp',
+        description: 'Trò chơi bàn tròn suy luận xã hội 3 phe (3–15 người) chơi chung trên 1 điện thoại.',
+        theme_color: '#FAF4E8',
+        background_color: '#FAF4E8',
         display: 'standalone',
         orientation: 'portrait',
         icons: [
