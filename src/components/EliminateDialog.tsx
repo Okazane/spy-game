@@ -1,10 +1,24 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion } from 'motion/react'
-import { Skull, Eye, ArrowRight, Trophy, Target, XCircle, CheckCircle } from '@phosphor-icons/react'
-import { playEliminateSound, playVictorySound, playClickSound, playStampSound, triggerHaptic } from '../utils/sound'
+import { ArrowRight } from '@phosphor-icons/react'
+import {
+  playEliminateSound,
+  playVictorySound,
+  playClickSound,
+  playStampSound,
+  playFlipSound,
+  playPeekHoldSound,
+  triggerHaptic,
+} from '../utils/sound'
 import { useGameStore, type Player, type Role } from '../stores/gameStore'
 import { getAvatarByIndex } from '../data/avatars'
-import { Tilted } from './Tilted'
+import {
+  AvatarPortrait,
+  RoleEmblem,
+  firePartyConfetti,
+} from './PartyVisuals'
+
+const INK = '#231C35'
 
 interface Props {
   player: Player
@@ -14,68 +28,97 @@ interface Props {
 }
 
 export function EliminateDialog({ player, speakingOrderIndex, onConfirm, onCancel }: Props) {
+  const players = useGameStore(s => s.players)
+  const idx = players.findIndex(p => p.id === player.id)
+  const avatar = getAvatarByIndex(idx >= 0 ? idx : 0)
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        playClickSound()
+        onCancel()
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onCancel])
+
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center px-5"
+      className="fixed inset-0 z-50 flex items-center justify-center px-5 select-none"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <div className="absolute inset-0 bg-black/75 backdrop-blur-xs" onClick={onCancel} />
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: 'rgba(35, 28, 53, 0.68)' }}
+        onClick={() => {
+          playClickSound()
+          onCancel()
+        }}
+      />
 
       <motion.div
-        className="relative w-full max-w-sm bg-[#fcfaf3] rounded-[3px] p-6 shadow-[6px_6px_0_#18120c] border-[1.5px] border-[#18120c] z-10 space-y-4"
-        initial={{ scale: 0.9, opacity: 0, y: 15 }}
+        className="party-card relative w-full max-w-sm p-5 space-y-4 z-10 text-center"
+        style={{ backgroundColor: '#FFFDF7' }}
+        initial={{ scale: 0.9, opacity: 0, y: 14 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 15 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+        exit={{ scale: 0.92, opacity: 0, y: 10 }}
+        transition={{ type: 'spring', damping: 23, stiffness: 330 }}
       >
-        <div className="text-center space-y-1">
-          <Tilted deg={-4} className="inline-block mx-auto mb-2">
-            <div className="w-12 h-12 rounded-[2px] mx-auto flex items-center justify-center bg-[#b91c1c] text-white text-2xl shadow-[2px_2px_0_#18120c] border border-[#18120c]">
-              <Skull size={28} weight="fill" />
-            </div>
-          </Tilted>
-          <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 900, color: 'var(--ink-primary)' }}>
-            BIỂU QUYẾT LOẠI BỎ
-          </h3>
-          <p className="text-xs text-[var(--ink-muted)] font-medium" style={{ fontFamily: 'var(--font-body)' }}>
-            Nếu đại đa số đồng thuận người này là Gián Điệp, hãy đóng dấu trục xuất.
-          </p>
-        </div>
-
-        <div className="p-3.5 rounded-[2px] bg-[#f4ede0] border-[1.5px] border-[#18120c] flex items-center justify-between shadow-[2px_2px_0_#18120c]">
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '1.15rem', color: 'var(--ink-primary)' }}>
-            {player.name}
-          </span>
+        <div className="flex flex-col items-center gap-2">
+          <AvatarPortrait avatar={avatar} size={76} />
           {speakingOrderIndex !== undefined && (
             <span
-              className="text-xs font-bold px-2.5 py-1 rounded-[2px] bg-[#fdfcf8] border border-[#18120c] text-[#181410] shadow-[1px_1px_0_#18120c]"
-              style={{ fontFamily: 'var(--font-body)' }}
+              className="px-2.5 py-0.5 rounded-full text-xs font-extrabold"
+              style={{
+                fontFamily: 'var(--font-display)',
+                backgroundColor: '#F2E9D8',
+                color: INK,
+                border: `1.5px solid ${INK}`,
+              }}
             >
-              Lượt nói: #{speakingOrderIndex}
+              Lượt nói #{speakingOrderIndex}
             </span>
           )}
         </div>
 
-        <div className="flex gap-2.5 pt-2">
-          <button
-            onClick={onCancel}
-            className="flex-1 py-3.5 rounded-[2px] font-bold text-xs text-[#181410] bg-[#f4ede0] hover:bg-[#ebd9c2] border-[1.5px] border-[#18120c] cursor-pointer shadow-[2px_2px_0_#18120c] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-            style={{ fontFamily: 'var(--font-body)' }}
+        <div className="space-y-1.5">
+          <h3
+            className="text-xl font-black leading-snug"
+            style={{ fontFamily: 'var(--font-display)', color: INK }}
           >
-            GIỮ LẠI
-          </button>
+            Cả bàn chốt loại{' '}
+            <span style={{ color: '#E11D48' }}>{player.name}</span>?
+          </h3>
+          <p className="text-xs leading-relaxed" style={{ color: '#5B5270' }}>
+            Lá bài vai trò của người này sẽ được lật mở ngay sau khi chốt phiếu.
+          </p>
+        </div>
+
+        <div className="flex gap-2.5 pt-1">
           <button
+            type="button"
             onClick={() => {
-              playStampSound()
-              playEliminateSound()
-              triggerHaptic(50)
+              playClickSound()
+              onCancel()
+            }}
+            className="btn-party-secondary flex-1 py-3 text-sm cursor-pointer"
+          >
+            Huỷ
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound(0.88)
+              triggerHaptic(35)
               onConfirm()
             }}
-            className="btn-stamp-red flex-1 py-3.5 text-xs font-black"
+            className="btn-party-danger flex-1 py-3 text-sm cursor-pointer"
           >
-            LOẠI NGAY ✕
+            Chốt loại
           </button>
         </div>
       </motion.div>
@@ -91,43 +134,64 @@ interface RevealProps {
   onContinue: () => void
 }
 
-const ROLE_INFO: Record<Role, { label: string; color: string; bg: string; border: string; emoji: string; desc: string }> = {
+const ROLE_REVEAL_THEME: Record<
+  Role,
+  {
+    headline: string
+    factionLabel: string
+    desc: string
+    color: string
+    stampBg: string
+    border: string
+  }
+> = {
   civilian: {
-    label: 'DÂN THƯỜNG',
-    color: '#1d4ed8',
-    bg: '#eff6ff',
-    border: '#1d4ed8',
-    emoji: '🛡️',
-    desc: 'Một Dân Thường vô tội đã bị loại khỏi ván đấu!',
+    headline: 'Là Dân thường!',
+    factionLabel: 'Phe Dân Thường',
+    desc: 'Cả hội vừa loại nhầm một người bên phe Dân thường rồi.',
+    color: '#0F766E',
+    stampBg: '#E6FAF6',
+    border: '#0D9488',
   },
   spy: {
-    label: 'GIÁN ĐIỆP',
-    color: '#b91c1c',
-    bg: '#fef2f2',
-    border: '#b91c1c',
-    emoji: '🕶️',
-    desc: 'Chính xác! Một Gián Điệp đã bị lật tẩy thành công!',
+    headline: 'Bắt trúng Gián điệp!',
+    factionLabel: 'Phe Gián Điệp',
+    desc: 'Chuẩn xác! Kẻ trà trộn đã bị lộ diện.',
+    color: '#BE123C',
+    stampBg: '#FFE8EC',
+    border: '#E11D48',
   },
   'white-hat': {
-    label: 'MŨ TRẮNG',
-    color: '#6d28d9',
-    bg: '#f5f3ff',
-    border: '#6d28d9',
-    emoji: '👻',
-    desc: 'Kẻ bí ẩn không mang từ khoá đã bị vạch trần!',
+    headline: 'Trúng ngay Mũ Trắng!',
+    factionLabel: 'Phe Mũ Trắng',
+    desc: 'Người chơi không có từ khoá vừa lộ diện.',
+    color: '#6D28D9',
+    stampBg: '#F3E8FF',
+    border: '#7C3AED',
   },
 }
 
-export function RoleRevealDialog({ player, playerIndex, isGameOver, aliveCount, onContinue }: RevealProps) {
-  const role = ROLE_INFO[player.role]
-  const avatar = getAvatarByIndex(playerIndex)
+export function RoleRevealDialog({
+  player,
+  playerIndex,
+  isGameOver,
+  aliveCount,
+  onContinue,
+}: RevealProps) {
+  const role = ROLE_REVEAL_THEME[player.role]
+  const avatar = getAvatarByIndex(playerIndex >= 0 ? playerIndex : 0)
   const isWhiteHat = player.role === 'white-hat'
-  const { whiteHatGuess } = useGameStore()
+  const whiteHatGuess = useGameStore(s => s.whiteHatGuess)
 
   const [guessInput, setGuessInput] = useState('')
   const [guessResult, setGuessResult] = useState<'idle' | 'correct' | 'wrong' | 'skipped'>('idle')
   const autoNavTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const hasNavigatedRef = useRef(false)
+  const onContinueRef = useRef(onContinue)
+
+  useEffect(() => {
+    onContinueRef.current = onContinue
+  }, [onContinue])
 
   const triggerContinue = () => {
     if (hasNavigatedRef.current) return
@@ -136,7 +200,7 @@ export function RoleRevealDialog({ player, playerIndex, isGameOver, aliveCount, 
       clearTimeout(autoNavTimerRef.current)
       autoNavTimerRef.current = null
     }
-    onContinue()
+    onContinueRef.current()
   }
 
   useEffect(() => {
@@ -148,222 +212,259 @@ export function RoleRevealDialog({ player, playerIndex, isGameOver, aliveCount, 
   }, [])
 
   useEffect(() => {
-    playStampSound()
-    if (player.role === 'spy' || isGameOver) {
-      playVictorySound()
-      triggerHaptic(50)
+    const timers: ReturnType<typeof setTimeout>[] = []
+    playFlipSound()
+
+    timers.push(
+      setTimeout(() => {
+        playStampSound()
+        triggerHaptic([35, 30])
+      }, 180)
+    )
+
+    timers.push(
+      setTimeout(() => {
+        if (player.role === 'spy') {
+          playVictorySound('civilian')
+        } else if (player.role === 'civilian') {
+          playEliminateSound()
+        } else {
+          playPeekHoldSound()
+        }
+      }, 260)
+    )
+
+    return () => {
+      for (const t of timers) clearTimeout(t)
     }
-  }, [player.role, isGameOver])
+  }, [player.role])
 
   const handleGuessSubmit = () => {
     if (!guessInput.trim()) return
     playClickSound()
-    triggerHaptic(30)
     const success = whiteHatGuess(guessInput)
     if (success) {
-      playVictorySound()
-      triggerHaptic(60)
+      playVictorySound('white-hat')
+      triggerHaptic([35, 45, 55])
+      firePartyConfetti('white-hat')
       setGuessResult('correct')
-      // Tự động chuyển qua trang chiến thắng sau 1.2s
       autoNavTimerRef.current = setTimeout(() => {
         triggerContinue()
-      }, 1200)
+      }, 1350)
     } else {
-      playStampSound()
-      triggerHaptic(40)
+      playEliminateSound()
+      triggerHaptic([40, 30])
       setGuessResult('wrong')
     }
   }
 
   const handleSkipGuess = () => {
-    playClickSound()
+    playClickSound(0.92)
     triggerHaptic(15)
     setGuessResult('skipped')
   }
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-center justify-center px-5"
+      className="fixed inset-0 z-50 flex items-center justify-center px-5 select-none"
+      style={{ perspective: 1100 }}
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
     >
-      <div className="absolute inset-0 bg-black/80 backdrop-blur-xs" />
+      <div
+        className="absolute inset-0"
+        style={{ backgroundColor: 'rgba(35, 28, 53, 0.74)' }}
+      />
 
       <motion.div
-        className="relative w-full max-w-sm bg-[#fcfaf3] rounded-[3px] p-6 shadow-[6px_6px_0_#18120c] border-[1.5px] border-[#18120c] z-10 space-y-3.5 text-center"
-        initial={{ scale: 0.85, opacity: 0, y: 20 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.85, opacity: 0, y: 20 }}
-        transition={{ type: 'spring', damping: 22, stiffness: 280 }}
+        className="party-card relative w-full max-w-sm p-5 space-y-4 z-10 text-center"
+        style={{ backgroundColor: '#FFFDF7', transformStyle: 'preserve-3d' }}
+        initial={{ rotateY: -86, scale: 0.88, opacity: 0, y: 14 }}
+        animate={{ rotateY: 0, scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.92, opacity: 0, y: 10 }}
+        transition={{ type: 'spring', damping: 21, stiffness: 270 }}
       >
-        {/* Header Tag */}
-        <Tilted deg={-3} className="inline-block mx-auto">
-          <div
-            className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#18120c] text-[#fcfaf3] text-[0.72rem] font-black uppercase tracking-wider border border-[#4a3622] shadow-[2px_2px_0_#c8a165]"
-            style={{ fontFamily: 'var(--font-stamp)' }}
-          >
-            <Eye size={13} weight="bold" className="text-[#c8a165]" />
-            <span>BẬT MÍ CHỨC NĂNG</span>
-          </div>
-        </Tilted>
-
-        {/* Player Info */}
-        <div className="flex flex-col items-center">
-          <div
-            className="w-14 h-14 rounded-[3px] flex items-center justify-center text-2xl shadow-[2px_2px_0_#18120c] border-[1.5px] border-[#18120c] mb-1.5"
-            style={{ backgroundColor: avatar.bg }}
-          >
-            {avatar.emoji}
-          </div>
+        <div className="flex flex-col items-center gap-1.5">
+          <AvatarPortrait avatar={avatar} size={74} />
           <h3
-            style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 900, color: 'var(--ink-primary)' }}
+            className="text-xl font-black mt-1"
+            style={{ fontFamily: 'var(--font-display)', color: INK }}
           >
             {player.name}
           </h3>
-          <p className="text-xs text-[var(--ink-muted)] font-semibold mt-0.5" style={{ fontFamily: 'var(--font-body)' }}>
-            Đã bị biểu quyết loại
-          </p>
+          <span
+            className="px-3 py-0.5 rounded-full text-xs font-extrabold"
+            style={{
+              fontFamily: 'var(--font-display)',
+              backgroundColor: role.stampBg,
+              color: role.color,
+              border: `1.5px solid ${role.border}`,
+            }}
+          >
+            {role.factionLabel}
+          </span>
         </div>
 
-        {/* Role Reveal Card */}
-        <div
-          className="p-3.5 rounded-[2px] border-[2px] flex flex-col items-center text-center shadow-[3px_3px_0_#18120c]"
-          style={{ backgroundColor: role.bg, borderColor: role.border }}
+        {/* Verdict Stamp */}
+        <motion.div
+          initial={{ scale: 1.25, rotate: -5, opacity: 0 }}
+          animate={{ scale: 1, rotate: -1, opacity: 1 }}
+          transition={{ type: 'spring', damping: 16, stiffness: 360, delay: 0.16 }}
+          className="rounded-2xl p-3.5 space-y-1 text-center"
+          style={{
+            backgroundColor: role.stampBg,
+            border: `2px solid ${role.border}`,
+          }}
         >
-          <span className="text-3xl mb-0.5">{role.emoji}</span>
-          <span
-            className="text-lg font-black tracking-wider"
-            style={{ color: role.color, fontFamily: 'var(--font-stamp)' }}
-          >
-            {role.label}
-          </span>
-          <p className="text-[0.75rem] font-bold mt-1 leading-snug" style={{ color: role.color, fontFamily: 'var(--font-body)' }}>
+          <div className="flex items-center justify-center gap-2">
+            <RoleEmblem role={player.role} size={34} />
+            <p
+              className="text-lg font-black leading-snug"
+              style={{ fontFamily: 'var(--font-display)', color: role.color }}
+            >
+              {role.headline}
+            </p>
+          </div>
+          <p className="text-xs font-medium leading-relaxed" style={{ color: INK }}>
             {role.desc}
           </p>
-        </div>
+        </motion.div>
 
-        {/* ── NẾU LÀ MŨ TRẮNG: CƠ HỘI ĐOÁN TỪ LẬT KÈO ── */}
+        {/* White-Hat Comeback Input */}
         {isWhiteHat && guessResult === 'idle' && (
-          <div className="p-3.5 bg-[#f5f0ff] rounded-[3px] border-[1.5px] border-[#6d28d9] text-center shadow-[3px_3px_0_#18120c] space-y-2.5">
-            <div className="flex items-center justify-center gap-1.5 text-[#6d28d9]">
-              <Target size={18} weight="bold" />
-              <span className="text-xs font-black uppercase tracking-wider" style={{ fontFamily: 'var(--font-stamp)' }}>
-                CƠ HỘI ĐOÁN TỪ LẬT KÈO!
-              </span>
-            </div>
-            <p className="text-[0.72rem] text-[#4c1d95] font-semibold leading-relaxed">
-              Mũ Trắng có <strong>1 cơ hội duy nhất</strong> đoán từ khoá của phe Dân. Đoán đúng sẽ <strong>thắng ngay lập tức!</strong>
-            </p>
-            <div className="relative">
-              <input
-                type="text"
-                value={guessInput}
-                onChange={e => setGuessInput(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') handleGuessSubmit()
-                }}
-                placeholder="Nhập từ khoá phe Dân..."
-                className="w-full px-3 py-2 text-center text-sm font-black bg-[#ffffff] border-[1.5px] border-[#6d28d9] rounded-[2px] text-[#181410] outline-none shadow-inner"
-                style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
-                autoFocus
-              />
-            </div>
-            <div className="flex gap-2 pt-0.5">
-              <button
-                onClick={handleSkipGuess}
-                className="flex-1 py-2 rounded-[2px] text-xs font-bold text-[#675543] bg-[#f4ede0] border border-[#18120c] hover:bg-[#ede5d5] cursor-pointer shadow-[1px_1px_0_#18120c] active:translate-x-[1px] active:translate-y-[1px]"
-                style={{ fontFamily: 'var(--font-body)' }}
+          <div
+            className="rounded-2xl p-3.5 text-center space-y-2.5"
+            style={{
+              backgroundColor: '#FAF5FF',
+              border: `2px solid ${INK}`,
+            }}
+          >
+            <div className="space-y-0.5">
+              <p
+                className="text-sm font-black"
+                style={{ fontFamily: 'var(--font-display)', color: '#6D28D9' }}
               >
-                BỎ QUA LƯỢT
-              </button>
+                Cơ hội lật kèo của Mũ Trắng
+              </p>
+              <p className="text-xs leading-relaxed" style={{ color: '#5B5270' }}>
+                Đoán đúng từ khoá của Dân Thường sẽ thắng ngay lập tức!
+              </p>
+            </div>
+
+            <input
+              type="text"
+              value={guessInput}
+              onChange={e => setGuessInput(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleGuessSubmit()
+              }}
+              placeholder="Nhập từ của Dân Thường..."
+              autoFocus
+              autoComplete="off"
+              className="w-full px-3.5 py-2.5 rounded-xl text-center text-sm font-bold outline-none select-text"
+              style={{
+                fontFamily: 'var(--font-sans)',
+                backgroundColor: '#FFFFFF',
+                color: INK,
+                border: `2px solid ${INK}`,
+                userSelect: 'text',
+                WebkitUserSelect: 'text',
+              }}
+            />
+
+            <div className="flex gap-2">
               <button
+                type="button"
+                onClick={handleSkipGuess}
+                className="btn-party-secondary flex-1 py-2.5 px-2 text-xs cursor-pointer"
+              >
+                Bỏ qua
+              </button>
+
+              <button
+                type="button"
                 onClick={handleGuessSubmit}
                 disabled={!guessInput.trim()}
-                className="flex-1 py-2 rounded-[2px] text-xs font-black text-white bg-[#6d28d9] hover:bg-[#5b21b6] disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer shadow-[2px_2px_0_#18120c] active:translate-x-[1px] active:translate-y-[1px]"
-                style={{ fontFamily: 'var(--font-stamp)' }}
+                className="btn-party-primary flex-1 py-2.5 px-2 text-xs cursor-pointer"
+                style={{ backgroundColor: '#7C3AED' }}
               >
-                XÁC NHẬN ĐOÁN 🎯
+                Chốt đáp án
               </button>
             </div>
           </div>
         )}
 
-        {/* ── KẾT QUẢ ĐOÁN ĐÚNG (MŨ TRẮNG THẮNG NGAY) ── */}
+        {/* White-Hat Correct Guess */}
         {isWhiteHat && guessResult === 'correct' && (
-          <div className="p-3.5 bg-[#f5f3ff] rounded-[3px] border-[2px] border-[#6d28d9] text-center shadow-[4px_4px_0_#18120c] space-y-2 animate-bounce">
-            <div className="flex items-center justify-center gap-1.5 text-[#6d28d9]">
-              <CheckCircle size={22} weight="fill" />
-              <span className="text-sm font-black uppercase tracking-wider" style={{ fontFamily: 'var(--font-stamp)' }}>
-                CHÍNH XÁC! LẬT KÈO NGOẠN MỤC!
-              </span>
-            </div>
-            <p className="text-xs font-extrabold text-[#4c1d95]">
-              Mũ Trắng đã đoán đúng từ khoá của Phe Dân: "<strong>{guessInput.trim()}</strong>"!
+          <div
+            className="rounded-2xl p-3.5 text-center space-y-2"
+            style={{
+              backgroundColor: '#FEF3C7',
+              border: `2px solid ${INK}`,
+            }}
+          >
+            <p
+              className="text-sm font-black"
+              style={{ fontFamily: 'var(--font-display)', color: '#6D28D9' }}
+            >
+              Đoán chuẩn xác — Lật kèo thành công!
             </p>
-            <p className="text-[0.68rem] text-[#6d28d9] font-black animate-pulse">
-              👑 Đang tự động chuyển đến màn vinh danh...
+            <p className="text-xs font-semibold" style={{ color: INK }}>
+              Từ của Dân Thường chính là <strong style={{ color: '#B45309' }}>"{guessInput.trim()}"</strong>.
             </p>
             <button
+              type="button"
               onClick={triggerContinue}
-              className="btn-kraft-stamp w-full py-3 text-xs font-black flex items-center justify-center gap-2 cursor-pointer shadow-[3px_3px_0_#18120c] mt-1"
+              className="btn-party-primary w-full py-2.5 text-sm inline-flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <Trophy size={16} weight="bold" />
-              CHUYỂN NGAY ➔
+              <span>Xem bảng tổng kết</span>
+              <ArrowRight size={16} weight="bold" />
             </button>
           </div>
         )}
 
-        {/* ── KẾT QUẢ ĐOÁN SAI ── */}
+        {/* White-Hat Wrong Guess */}
         {isWhiteHat && guessResult === 'wrong' && (
-          <div className="p-3 bg-[#fef2f2] rounded-[3px] border-[1.5px] border-[#b91c1c] text-center shadow-[2px_2px_0_#18120c] space-y-1">
-            <div className="flex items-center justify-center gap-1 text-[#b91c1c]">
-              <XCircle size={16} weight="bold" />
-              <span className="text-xs font-black uppercase" style={{ fontFamily: 'var(--font-stamp)' }}>
-                ĐOÁN CHƯA CHÍNH XÁC!
-              </span>
-            </div>
-            <p className="text-xs text-[#7f1d1d] font-semibold">
-              Mũ Trắng đoán "{guessInput.trim()}" không đúng. Mũ Trắng chính thức bị loại!
+          <div
+            className="rounded-2xl p-3 text-center space-y-1"
+            style={{
+              backgroundColor: '#FFE8EC',
+              border: '1.5px solid #E11D48',
+            }}
+          >
+            <p
+              className="text-sm font-extrabold"
+              style={{ fontFamily: 'var(--font-display)', color: '#E11D48' }}
+            >
+              Chưa đúng từ khoá rồi!
+            </p>
+            <p className="text-xs" style={{ color: '#5B5270' }}>
+              Đáp án <strong>"{guessInput.trim()}"</strong> không khớp.
             </p>
           </div>
         )}
 
-        {/* ── FOOTER: CHỈ HIỆN KHI KHÔNG PHẢI MŨ TRẮNG ĐANG ĐOÁN, HOẶC ĐÃ ĐOÁN SAI / BỎ QUA ── */}
+        {/* Footer Continue */}
         {(!isWhiteHat || guessResult === 'wrong' || guessResult === 'skipped') && (
-          <div className="pt-2 space-y-3">
-            {isGameOver ? (
-              <p
-                className="text-xs font-black text-[#8c6530] bg-[#fdf8e8] py-2 px-3 rounded-[2px] border border-[#c8a165] shadow-[2px_2px_0_#18120c]"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                🏆 VÁN ĐẤU ĐÃ NGÃ NGŨ!
-              </p>
-            ) : (
-              <p className="text-xs font-bold text-[var(--ink-muted)]" style={{ fontFamily: 'var(--font-body)' }}>
-                Còn lại <span className="font-black text-[#181410]">{aliveCount} người</span> tiếp tục ván đấu
-              </p>
-            )}
+          <div className="pt-0.5 space-y-2.5">
+            <p className="text-xs font-semibold" style={{ color: '#5B5270' }}>
+              {isGameOver
+                ? 'Ván chơi đã phân định thắng thua!'
+                : `Còn ${aliveCount} người chơi — tiếp tục thảo luận nhé.`}
+            </p>
 
             <button
+              type="button"
               onClick={() => {
                 playClickSound()
                 triggerHaptic(20)
                 triggerContinue()
               }}
-              className="btn-kraft-stamp w-full py-3.5 text-sm font-black flex items-center justify-center gap-2 cursor-pointer shadow-[4px_4px_0_#18120c]"
+              className="btn-party-primary w-full py-3 text-sm inline-flex items-center justify-center gap-2 cursor-pointer"
             >
-              {isGameOver ? (
-                <>
-                  <Trophy size={18} weight="bold" />
-                  <span>XEM KẾT QUẢ VÁN ĐẤU ➔</span>
-                </>
-              ) : (
-                <>
-                  <span>TIẾP TỤC VÁN CHƠI</span>
-                  <ArrowRight size={18} weight="bold" />
-                </>
-              )}
+              <span>{isGameOver ? 'Xem kết quả chung cuộc' : 'Tiếp tục ván chơi'}</span>
+              <ArrowRight size={18} weight="bold" />
             </button>
           </div>
         )}

@@ -1,318 +1,672 @@
 @import "tailwindcss";
 
 /* ============================================================
-   NOIR-TACTILE DETECTIVE DESIGN SYSTEM
-   Bảng màu mực in báo chí, giấy Kraft ngả vàng, con dấu cao su
+   HỘI BÀN TRÒN — COZY TABLETOP PARTY EDITION
+   Warm cream cardstock • Thick ink borders • Push-down buttons
+   GPU-friendly gradients only (no blur filters)
    ============================================================ */
+
+/* Tailwind v4 theme bridge — enables utilities such as
+   `font-display`, `text-ink`, `bg-coral`, `bg-cream`, `border-ink`,
+   `text-civilian`, `bg-spy`, `text-whitehat`, `bg-sun`, `bg-oat`. */
+@theme {
+  --font-display: 'Nunito', 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-sans: 'Be Vietnam Pro', system-ui, sans-serif;
+
+  --color-ink: #231c35;
+  --color-ink-soft: #5b5270;
+  --color-ink-muted: #8c82a0;
+  --color-cream: #faf4e8;
+  --color-oat: #f2e9d8;
+  --color-card: #ffffff;
+  --color-coral: #ff5a36;
+  --color-sun: #ffb800;
+  --color-amber: #f59e0b;
+  --color-civilian: #0d9488;
+  --color-spy: #e11d48;
+  --color-whitehat: #7c3aed;
+  --color-peek: #1c172a;
+}
 
 :root {
-  /* Rich Noir & Kraft Palette — Tối ưu độ sáng và độ trong trẻo */
-  --ink-primary: #181410;
-  --ink-secondary: #3a2e22;
-  --ink-muted: #675543;
-  --ink-faint: #917b66;
+  /* Typography (100% Vietnamese diacritics) */
+  --font-display: 'Nunito', 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-sans: 'Be Vietnam Pro', system-ui, sans-serif;
+  --font-body: var(--font-sans);
+  /* Legacy aliases — no monospace in the cozy edition */
+  --font-mono: var(--font-display);
+  --font-stamp: var(--font-display);
 
-  --color-kraft: #c8a165;
-  --color-kraft-dark: #8c6530;
-  --color-paper: #faf5eb;
-  --color-paper-light: #ffffff;
-  --color-stamp-red: #a11111;
-  --color-tape: rgba(238, 226, 155, 0.88);
+  /* Tabletop surfaces */
+  --bg-void: #1e192b; /* espresso-plum café table outside the phone frame */
+  --bg-base: #faf4e8; /* warm cream cardstock canvas */
+  --bg-surface: #ffffff; /* crisp playing-card white */
+  --bg-elevated: #f2e9d8; /* oatmeal / sand inset */
+  --bg-peek: #1c172a; /* velvet privacy curtain (secret peek modals only) */
+  --bg-glass: rgba(255, 253, 249, 0.92); /* legacy alias */
 
-  /* Typography System (Đảm bảo 100% tiếng Việt có dấu) */
-  --font-display: "Playfair Display", Georgia, serif;
-  --font-body: "IBM Plex Mono", monospace;
-  --font-stamp: "Bungee", cursive, monospace;
-  --font-hand: "Patrick Hand", cursive;
+  /* Ink */
+  --ink-primary: #231c35;
+  --ink-secondary: #5b5270;
+  --ink-muted: #8c82a0;
+  --text-primary: #231c35;
+  --text-secondary: #5b5270;
+  --text-muted: #8c82a0;
 
-  /* Căn chỉnh khung ảnh Polaroid trên bàn gỗ */
-  --pol-x: 50.5%;
-  --pol-y: 52.8%;
-  --pol-w: clamp(170px, 21.8vw, 245px);
-  --pol-h: clamp(170px, 21.8vw, 245px);
-  --pol-rot: 3.4deg;
+  /* Borders */
+  --border-ink: #231c35;
+  --border-subtle: rgba(35, 28, 53, 0.13);
+  --border-strong: #231c35;
 
-  /* Easing vật lý cơ học */
-  --ease-bounce: cubic-bezier(0.25, 1.5, 0.5, 1);
-  --ease-snap: cubic-bezier(0.2, 0, 0, 1);
-}
+  /* Party accents */
+  --accent-coral: #ff5a36;
+  --accent-sun: #ffb800;
+  --accent-amber: #f59e0b;
+  --accent-amber-glow: rgba(255, 184, 0, 0.22); /* legacy alias: soft marigold tint */
 
-*, *::before, *::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-  -webkit-tap-highlight-color: transparent;
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-}
+  /* Factions */
+  --faction-civilian: #0d9488;
+  --faction-civilian-glow: rgba(13, 148, 136, 0.16);
+  --faction-spy: #e11d48;
+  --faction-spy-glow: rgba(225, 29, 72, 0.16);
+  --faction-whitehat: #7c3aed;
+  --faction-whitehat-glow: rgba(124, 58, 237, 0.16);
 
-*::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-}
+  /* Card-back */
+  --card-back-indigo: #312e81;
 
-button {
-  -webkit-touch-callout: none;
-  touch-action: manipulation;
-}
+  /* Motion */
+  --ease-snap: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
-html, body {
-  margin: 0;
-  padding: 0;
-  width: 100%;
-  min-height: 100%;
-  background-color: #231b14;
-  color: var(--ink-primary);
-  font-family: var(--font-body);
-  user-select: none;
-  -webkit-user-select: none;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
+  color-scheme: light;
 }
 
-#root {
-  min-height: 100dvh;
-  width: 100%;
-  display: flex;
-  justify-content: center;
-  align-items: stretch;
-  background-color: #231b14;
-  position: relative;
-  overflow-x: hidden;
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+    width: 0;
+    height: 0;
+  }
+
+  html,
+  body {
+    width: 100%;
+    min-height: 100%;
+    background-color: var(--bg-void);
+    color: var(--ink-primary);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+    overscroll-behavior-y: none;
+  }
+
+  #root {
+    min-height: 100dvh;
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: stretch;
+    background-color: var(--bg-void);
+    position: relative;
+    overflow-x: hidden;
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-display);
+    color: var(--ink-primary);
+  }
+
+  ::selection {
+    background: rgba(255, 184, 0, 0.45);
+    color: var(--ink-primary);
+  }
+
+  button,
+  [role="button"],
+  a {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+    touch-action: manipulation;
+  }
+
+  button:focus-visible,
+  [role="button"]:focus-visible,
+  a:focus-visible {
+    outline: 3px solid var(--accent-sun);
+    outline-offset: 3px;
+  }
+
+  /* Text selection & native cursor inside inputs */
+  input,
+  textarea,
+  [contenteditable="true"] {
+    -webkit-touch-callout: default;
+    -webkit-user-select: text;
+    user-select: text;
+    touch-action: manipulation;
+    font-family: var(--font-sans);
+  }
 }
 
-/* ============================================================
-   DESKTOP BACKDROP NỀN NGOÀI KHUNG 440PX (SÁNG VÀ RÕ NÉT)
-   ============================================================ */
-.desktop-backdrop {
-  position: fixed;
-  inset: 0;
-  background-image: url('/assets/lobby.webp');
-  background-size: cover;
-  background-position: center;
-  filter: brightness(0.72) saturate(1.05);
-  pointer-events: none;
-  z-index: 0;
-}
+@layer components {
+  /* ============================================================
+     DESKTOP CAFÉ TABLETOP BACKDROP (outside the 440px frame)
+     Warm lamp glow + faint woodgrain + soft dots. No blur.
+     ============================================================ */
+  .desktop-backdrop {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-color: var(--bg-void);
+    background-image:
+      radial-gradient(720px 520px at 50% 8%, rgba(255, 184, 0, 0.14) 0%, transparent 70%),
+      radial-gradient(520px 420px at 12% 92%, rgba(255, 90, 54, 0.1) 0%, transparent 70%),
+      radial-gradient(520px 420px at 88% 88%, rgba(13, 148, 136, 0.09) 0%, transparent 70%),
+      radial-gradient(circle, rgba(250, 244, 232, 0.07) 1.3px, transparent 1.8px),
+      repeating-linear-gradient(
+        180deg,
+        rgba(255, 220, 170, 0.018) 0px,
+        rgba(255, 220, 170, 0.018) 2px,
+        transparent 2px,
+        transparent 9px
+      ),
+      radial-gradient(circle at 50% 45%, transparent 40%, rgba(12, 9, 18, 0.7) 100%);
+    background-size: 100% 100%, 100% 100%, 100% 100%, 28px 28px, 100% 100%, 100% 100%;
+  }
 
-/* ============================================================
-   LỚP PHỦ QUANG HỌC: TẮT BỎ BÓNG MỜ VIGNETTE & FILM GRAIN
-   - Loại bỏ triệt để hiện tượng bóng mờ làm tối màn hình
-   ============================================================ */
-.film-grain {
-  display: none !important;
-}
+  @media (max-width: 440px) {
+    .desktop-backdrop {
+      display: none;
+    }
+  }
 
-.vignette {
-  display: none !important;
-}
-
-/* Chớp flash máy ảnh 100ms */
-.camera-flash {
-  position: fixed;
-  inset: 0;
-  background-color: #ffffff;
-  opacity: 0;
-  pointer-events: none;
-  z-index: 996;
-  transition: opacity 100ms linear;
-}
-.camera-flash.active {
-  opacity: 0.95;
-}
-
-/* Rung giật màn hình khi đóng con dấu */
-.screen-shake {
-  animation: shakeAnim 0.25s steps(3);
-}
-@keyframes shakeAnim {
-  0% { transform: translate(0, 0); }
-  25% { transform: translate(-4px, 3px); }
-  50% { transform: translate(3px, -4px); }
-  75% { transform: translate(-2px, -2px); }
-  100% { transform: translate(0, 0); }
-}
-
-/* ============================================================
-   CỬA PHÒNG TỐI (DARKROOM SHUTTERS)
-   ============================================================ */
-.darkroom-shutter {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  width: 50.5%;
-  background: #080605;
-  z-index: 999;
-  pointer-events: none;
-  transition: transform 180ms var(--ease-snap);
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.98);
-}
-.shutter-left {
-  left: 0;
-  transform: translateX(-100%);
-  border-right: 2px solid #231b12;
-}
-.shutter-right {
-  right: 0;
-  transform: translateX(100%);
-  border-left: 2px solid #231b12;
-}
-.shutters-closed .shutter-left,
-.shutters-closed .shutter-right {
-  transform: translateX(0);
-  pointer-events: auto;
-}
-
-/* ============================================================
-   KHUNG ỨNG DỤNG MOBILE CHUẨN SAFE-AREA
-   ============================================================ */
-.app-mobile-frame {
-  width: 100%;
-  max-width: 440px;
-  min-height: 100dvh;
-  margin: 0 auto;
-  position: relative;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: none !important;
-  -ms-overflow-style: none !important;
-  display: flex;
-  flex-direction: column;
-  z-index: 10;
-  background-color: var(--color-paper);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
-  padding-left: max(16px, env(safe-area-inset-left));
-  padding-right: max(16px, env(safe-area-inset-right));
-}
-
-.app-mobile-frame::-webkit-scrollbar {
-  display: none !important;
-  width: 0 !important;
-  height: 0 !important;
-}
-
-@media (max-width: 480px) {
+  /* ============================================================
+     440PX CREAM CARDSTOCK PHONE FRAME
+     ============================================================ */
   .app-mobile-frame {
-    max-width: 100%;
+    width: 100%;
+    max-width: 440px;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0 auto;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+    color: var(--ink-primary);
+    background-color: var(--bg-base);
+    background-image:
+      radial-gradient(120% 40% at 50% 0%, rgba(255, 184, 0, 0.1) 0%, transparent 70%),
+      radial-gradient(circle, rgba(35, 28, 53, 0.055) 1.2px, transparent 1.7px),
+      radial-gradient(circle, rgba(255, 90, 54, 0.04) 1.2px, transparent 1.7px);
+    background-size: 100% 100%, 22px 22px, 22px 22px;
+    background-position: 0 0, 0 0, 11px 11px;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+  }
+
+  @media (min-width: 441px) {
+    .app-mobile-frame {
+      border-left: 2px solid rgba(35, 28, 53, 0.2);
+      border-right: 2px solid rgba(35, 28, 53, 0.2);
+      box-shadow:
+        0 0 0 6px rgba(255, 184, 0, 0.07),
+        0 0 0 7px rgba(250, 244, 232, 0.06),
+        0 30px 80px rgba(8, 5, 14, 0.55);
+    }
+  }
+
+  /* ============================================================
+     PHYSICAL CARDSTOCK SURFACES
+     ============================================================ */
+  .party-card,
+  .ops-card {
+    background: #ffffff;
+    border: 2px solid var(--border-ink);
+    border-radius: 22px;
+    box-shadow: 0 4px 0 var(--border-ink);
+    color: var(--ink-primary);
+    -webkit-touch-callout: none;
+    user-select: none;
+    /* Shadow only: many cards are `motion.*` elements, and a CSS transform
+       transition would fight Motion's per-frame transforms. Use
+       `.party-card-interactive` for the CSS lift/press on plain elements. */
+    transition: box-shadow 120ms var(--ease-snap);
+  }
+
+  /* Opt-in tappable card (plain, non-motion elements): lifts on hover, presses into the table on tap */
+  .party-card-interactive {
+    cursor: pointer;
+    transform: translate3d(0, 0, 0);
+    transition:
+      transform 120ms var(--ease-snap),
+      box-shadow 120ms var(--ease-snap);
+  }
+
+  @media (hover: hover) {
+    .party-card-interactive:hover {
+      transform: translate3d(0, -2px, 0);
+      box-shadow: 0 6px 0 var(--border-ink);
+    }
+  }
+
+  .party-card-interactive:active {
+    transform: translate3d(0, 3px, 0);
+    box-shadow: 0 1px 0 var(--border-ink);
+  }
+
+  /* Glossy cardstock sheen: a soft light band glides across on hover.
+     Add `.party-sheen-loop` for an idle shimmer every few seconds. */
+  .party-sheen {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+
+  .party-sheen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      115deg,
+      transparent 32%,
+      rgba(255, 255, 255, 0.5) 46%,
+      rgba(255, 255, 255, 0.18) 52%,
+      transparent 64%
+    );
+    transform: translate3d(-130%, 0, 0);
+    transition: transform 650ms var(--ease-snap);
+  }
+
+  @media (hover: hover) {
+    .party-sheen:hover::after {
+      transform: translate3d(130%, 0, 0);
+    }
+  }
+
+  .party-sheen-loop::after {
+    animation: partySheenSweep 4.2s var(--ease-snap) infinite;
+  }
+
+  .party-card-soft,
+  .ops-card-elevated {
+    background: #fffdf9;
+    border: 1.5px solid rgba(35, 28, 53, 0.16);
+    border-radius: 20px;
+    box-shadow: 0 3px 0 rgba(35, 28, 53, 0.08);
+    color: var(--ink-primary);
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+
+  .party-inset {
+    background: var(--bg-elevated);
+    border: 1.5px solid rgba(35, 28, 53, 0.12);
+    border-radius: 16px;
+    color: var(--ink-primary);
+  }
+
+  /* ============================================================
+     PUSH-DOWN PARTY BUTTONS
+     ============================================================ */
+  .btn-party-primary,
+  .btn-ops-primary,
+  .btn-party-secondary,
+  .btn-ops-secondary,
+  .btn-party-danger,
+  .btn-ops-danger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    font-family: var(--font-display);
+    font-weight: 800;
+    letter-spacing: 0;
+    border: 2px solid var(--border-ink);
+    border-radius: 18px;
+    cursor: pointer;
+    transform: translate3d(0, 0, 0);
+    transition:
+      transform 120ms var(--ease-snap),
+      box-shadow 120ms var(--ease-snap),
+      background-color 150ms ease,
+      filter 150ms ease,
+      opacity 150ms ease;
+    will-change: transform;
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+
+  .btn-party-primary,
+  .btn-ops-primary {
+    background: #ff5a36;
+    color: #ffffff;
+    box-shadow: 0 4px 0 var(--border-ink);
+  }
+
+  .btn-party-secondary,
+  .btn-ops-secondary {
+    background: #ffffff;
+    color: var(--ink-primary);
+    box-shadow: 0 3px 0 var(--border-ink);
+  }
+
+  .btn-party-danger,
+  .btn-ops-danger {
+    background: #e11d48;
+    color: #ffffff;
+    box-shadow: 0 4px 0 var(--border-ink);
+  }
+
+  @media (hover: hover) {
+    .btn-party-primary:hover:not(:disabled),
+    .btn-ops-primary:hover:not(:disabled),
+    .btn-party-danger:hover:not(:disabled),
+    .btn-ops-danger:hover:not(:disabled) {
+      filter: brightness(1.05);
+      transform: translate3d(0, -1px, 0);
+      box-shadow: 0 5px 0 var(--border-ink);
+    }
+
+    .btn-party-secondary:hover:not(:disabled),
+    .btn-ops-secondary:hover:not(:disabled) {
+      background: #fffaf0;
+      transform: translate3d(0, -1px, 0);
+      box-shadow: 0 4px 0 var(--border-ink);
+    }
+  }
+
+  .btn-party-primary:active:not(:disabled),
+  .btn-ops-primary:active:not(:disabled),
+  .btn-party-danger:active:not(:disabled),
+  .btn-ops-danger:active:not(:disabled) {
+    transform: translateY(3px);
+    box-shadow: 0 1px 0 var(--border-ink);
+    filter: none;
+  }
+
+  .btn-party-secondary:active:not(:disabled),
+  .btn-ops-secondary:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 var(--border-ink);
+    background: var(--bg-elevated);
+  }
+
+  .btn-party-primary:disabled,
+  .btn-ops-primary:disabled,
+  .btn-party-secondary:disabled,
+  .btn-ops-secondary:disabled,
+  .btn-party-danger:disabled,
+  .btn-ops-danger:disabled {
+    opacity: 0.48;
     box-shadow: none;
+    transform: none;
+    filter: none;
+    cursor: not-allowed;
+  }
+
+  /* ============================================================
+     PILLS / BADGES (no uppercase, no monospace)
+     ============================================================ */
+  .party-pill,
+  .ops-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-family: var(--font-display);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0;
+    text-transform: none;
+    line-height: 1.3;
+    white-space: nowrap;
+    border-radius: 9999px;
+    padding: 4px 12px;
+    background: var(--bg-elevated);
+    color: var(--ink-primary);
+    border: 1.5px solid rgba(35, 28, 53, 0.14);
+  }
+
+  /* ============================================================
+     PLAYING-CARD BACK (face-down GameCard)
+     Royal indigo diamond lattice + marigold inner frame + center medallion
+     ============================================================ */
+  .card-back-pattern {
+    position: relative;
+    background-color: var(--card-back-indigo);
+    background-image:
+      radial-gradient(circle at 50% 50%, #ffb800 0 13px, #231c35 13px 15.5px, #ff5a36 15.5px 21px, #231c35 21px 23.5px, transparent 24px),
+      repeating-linear-gradient(45deg, transparent 0 10px, rgba(255, 184, 0, 0.26) 10px 12px),
+      repeating-linear-gradient(-45deg, transparent 0 10px, rgba(255, 184, 0, 0.26) 10px 12px),
+      radial-gradient(circle at 50% 50%, #3d3a9a 0%, #312e81 60%, #272468 100%);
+    border: 2px solid var(--border-ink);
+    border-radius: 22px;
+    box-shadow:
+      inset 0 0 0 7px var(--card-back-indigo),
+      inset 0 0 0 9.5px #ffb800,
+      inset 0 0 0 12px var(--card-back-indigo),
+      0 4px 0 var(--border-ink);
+    color: #fff8e6;
+  }
+
+  /* ============================================================
+     SCREEN-READER ONLY HELPER
+     ============================================================ */
+  .party-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 }
 
 /* ============================================================
-   THẺ HỒ SƠ & BÓNG CỨNG (HARD PHOTOCOPY SHADOWS)
+   FX: WARM CAMERA FLASH, TABLE BUMP SHAKE & VELVET CURTAIN
    ============================================================ */
-.game-card-tactile {
-  background: var(--color-paper-light);
-  border-radius: 3px;
-  border: 1.5px solid #281e15;
-  box-shadow: 4px 4px 0 #18120c;
-  color: var(--ink-primary);
-}
-
-.card-party-white {
-  background: var(--color-paper);
-  border-radius: 3px;
-  border: 1.5px solid #281e15;
-  box-shadow: 4px 4px 0 #18120c;
-}
-
-/* ============================================================
-   NÚT BẤM KRAFT / MANILA SHIPPING TAG
-   ============================================================ */
-.btn-party-green,
-.btn-kraft-stamp {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-family: var(--font-display);
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  color: #1a1209;
-  background: #c8a165 linear-gradient(135deg, rgba(255,255,255,0.18) 0%, rgba(0,0,0,0.12) 100%);
-  border: 1.5px solid #7c5c2d;
-  box-shadow: 3px 4px 0 #18120c;
-  border-radius: 3px;
-  cursor: pointer;
-  transition: transform 0.08s var(--ease-bounce), box-shadow 0.08s var(--ease-snap);
-}
-
-.btn-party-green:active,
-.btn-kraft-stamp:active {
-  transform: translate(3px, 3px);
-  box-shadow: 0 0 0 #18120c;
-}
-
-/* Nút con dấu đỏ BẮT GIỮ */
-.btn-stamp-red {
-  background: #a11111;
-  color: #ffffff;
-  border: 2px double #fde8e8;
-  box-shadow: 3px 4px 0 #3b0505;
-  font-family: var(--font-display);
-  font-weight: 900;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  border-radius: 2px;
-  cursor: pointer;
-  transition: transform 0.08s var(--ease-bounce), box-shadow 0.08s var(--ease-snap);
-}
-.btn-stamp-red:active {
-  transform: translate(3px, 3px);
-  box-shadow: 0 0 0 #3b0505;
-}
-
-/* Nút Stepper tăng giảm */
-.game-stepper-btn {
-  background: #fdfcf8;
-  border: 1.5px solid #281e15;
-  box-shadow: 2px 2px 0 #18120c;
-  color: var(--ink-primary);
-  border-radius: 2px;
-  cursor: pointer;
-  transition: transform 0.06s ease, box-shadow 0.06s ease;
-}
-.game-stepper-btn:active {
-  transform: translate(2px, 2px);
-  box-shadow: 0 0 0 #18120c;
-}
-.game-stepper-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  transform: none;
-}
-
-/* Băng dính Masking Tape răng cưa 2 đầu */
-.masking-tape {
-  position: absolute;
-  top: -10px;
-  left: 50%;
-  transform: translateX(-50%) rotate(0.8deg);
-  width: 110px;
-  height: 20px;
-  background-color: var(--color-tape);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
-  opacity: 0.88;
-  clip-path: polygon(
-    0% 0%, 4px 3px, 0% 6px, 4px 9px, 0% 12px, 4px 15px, 0% 18px, 4px 20px, 0% 20px,
-    100% 20px, 96% 17px, 100% 14px, 96% 11px, 100% 8px, 96% 5px, 100% 2px, 96% 0%, 100% 0%
+.camera-flash {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(
+    circle at 50% 38%,
+    rgba(255, 253, 245, 0.96) 0%,
+    rgba(255, 214, 120, 0.4) 70%,
+    rgba(255, 184, 0, 0.12) 100%
   );
+  opacity: 0;
   pointer-events: none;
-  z-index: 5;
+  z-index: 996;
+  transition: opacity 110ms linear;
+  will-change: opacity;
 }
 
-/* Con trỏ máy đánh chữ */
-.typewriter-cursor {
-  display: inline-block;
-  width: 0.52em;
-  background-color: var(--ink-primary);
-  margin-left: 2px;
-  animation: blinkCursor 0.75s steps(1) infinite;
+.camera-flash.active {
+  opacity: 0.9;
 }
-@keyframes blinkCursor {
-  0%, 50% { opacity: 1; }
-  51%, 100% { opacity: 0; }
+
+.screen-shake {
+  animation: partyTableBump 240ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+  will-change: transform;
+}
+
+@keyframes partyTableBump {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  20% {
+    transform: translate3d(-4px, 1px, 0) rotate(-0.6deg);
+  }
+  40% {
+    transform: translate3d(4px, -2px, 0) rotate(0.6deg);
+  }
+  60% {
+    transform: translate3d(-3px, -1px, 0) rotate(-0.3deg);
+  }
+  80% {
+    transform: translate3d(2px, 1px, 0) rotate(0.2deg);
+  }
+}
+
+@keyframes partySheenSweep {
+  0%,
+  62% {
+    transform: translate3d(-130%, 0, 0);
+  }
+  100% {
+    transform: translate3d(130%, 0, 0);
+  }
+}
+
+/* Legacy velvet curtain classes (no longer mounted by the App shell —
+   phase changes now use AnimatePresence stage transitions). */
+.darkroom-shutter {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 50.4%;
+  z-index: 999;
+  pointer-events: none;
+  background-color: #231c35;
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.05) 0px,
+      rgba(255, 255, 255, 0.05) 10px,
+      rgba(0, 0, 0, 0.16) 22px,
+      rgba(255, 255, 255, 0.05) 34px
+    ),
+    linear-gradient(180deg, rgba(255, 90, 54, 0.12) 0%, transparent 30%, transparent 70%, rgba(0, 0, 0, 0.25) 100%);
+  transition: transform 150ms var(--ease-snap);
+  will-change: transform;
+}
+
+.shutter-left {
+  left: 0;
+  transform: translate3d(-102%, 0, 0);
+  border-right: 5px solid #ffb800;
+  box-shadow: inset -3px 0 0 #231c35, 6px 0 0 rgba(35, 28, 53, 0.35);
+}
+
+.shutter-right {
+  right: 0;
+  transform: translate3d(102%, 0, 0);
+  border-left: 5px solid #ffb800;
+  box-shadow: inset 3px 0 0 #231c35, -6px 0 0 rgba(35, 28, 53, 0.35);
+}
+
+/* Marigold tie-back medallion where the curtains meet */
+.shutter-left::after,
+.shutter-right::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 22px;
+  height: 44px;
+  margin-top: -22px;
+  background: #ffb800;
+  border: 2.5px solid #231c35;
+}
+
+.shutter-left::after {
+  right: -5px;
+  border-right: none;
+  border-radius: 22px 0 0 22px;
+}
+
+.shutter-right::after {
+  left: -5px;
+  border-left: none;
+  border-radius: 0 22px 22px 0;
+}
+
+.darkroom-shutter.shutters-closed,
+.shutters-closed .shutter-left,
+.shutters-closed .shutter-right {
+  transform: translate3d(0, 0, 0);
+  pointer-events: auto;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .screen-shake {
+    animation: none;
+  }
+
+  .darkroom-shutter {
+    transition-duration: 1ms;
+  }
+
+  .camera-flash {
+    transition-duration: 1ms;
+  }
+
+  /* Keep the tactile shadow change on press, drop the movement */
+  .btn-party-primary,
+  .btn-ops-primary,
+  .btn-party-secondary,
+  .btn-ops-secondary,
+  .btn-party-danger,
+  .btn-ops-danger,
+  .party-card,
+  .ops-card,
+  .party-card-interactive {
+    transition:
+      box-shadow 1ms linear,
+      background-color 1ms linear,
+      opacity 1ms linear;
+    will-change: auto;
+  }
+
+  .btn-party-primary:hover:not(:disabled),
+  .btn-ops-primary:hover:not(:disabled),
+  .btn-party-secondary:hover:not(:disabled),
+  .btn-ops-secondary:hover:not(:disabled),
+  .btn-party-danger:hover:not(:disabled),
+  .btn-ops-danger:hover:not(:disabled),
+  .btn-party-primary:active:not(:disabled),
+  .btn-ops-primary:active:not(:disabled),
+  .btn-party-secondary:active:not(:disabled),
+  .btn-ops-secondary:active:not(:disabled),
+  .btn-party-danger:active:not(:disabled),
+  .btn-ops-danger:active:not(:disabled),
+  .party-card-interactive:hover,
+  .party-card-interactive:active {
+    transform: none;
+  }
+
+  .party-sheen::after,
+  .party-sheen-loop::after {
+    animation: none;
+    transition: none;
+    display: none;
+  }
 }

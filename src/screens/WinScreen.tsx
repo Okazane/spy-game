@@ -1,386 +1,289 @@
-import { useState, useEffect, useMemo } from 'react'
-import { ArrowCounterClockwise, Users, FileText, ShieldCheck, EyeClosed, Ghost } from '@phosphor-icons/react'
-import { useGameStore } from '../stores/gameStore'
-import { playClickSound, playStampSound, playFlashSound, playMarkerSound, playVictorySound, triggerHaptic } from '../utils/sound'
+import { useEffect, useMemo } from 'react'
+import { motion } from 'motion/react'
+import { ArrowCounterClockwise, House } from '@phosphor-icons/react'
+import { useGameStore, type Role, type Winner } from '../stores/gameStore'
+import {
+  playClickSound,
+  playFlipSound,
+  playStampSound,
+  playVictorySound,
+  triggerHaptic,
+} from '../utils/sound'
 import { getAvatarByIndex } from '../data/avatars'
-import { Tilted } from '../components/Tilted'
+import {
+  AvatarPortrait,
+  RoleEmblem,
+  firePartyConfetti,
+} from '../components/PartyVisuals'
+
+const INK = '#231C35'
+
+type ResolvedWinner = Exclude<Winner, null>
+
+interface OutcomeTheme {
+  tag: string
+  headline: string
+  subtitle: string
+  accentColor: string
+  bg: string
+  role: Role
+}
+
+const OUTCOME_THEMES: Record<ResolvedWinner, OutcomeTheme> = {
+  civilian: {
+    tag: 'Phe Dân Thường thắng',
+    headline: 'Cả hội quá tỉnh đòn!',
+    subtitle: 'Đã tìm ra toàn bộ kẻ trà trộn trên bàn.',
+    accentColor: '#0F766E',
+    bg: '#CCFBF1',
+    role: 'civilian',
+  },
+  spy: {
+    tag: 'Phe Gián Điệp thắng',
+    headline: 'Gián Điệp diễn quá mượt!',
+    subtitle: 'Trà trộn thành công đến tận phút cuối.',
+    accentColor: '#BE123C',
+    bg: '#FFE4E6',
+    role: 'spy',
+  },
+  'white-hat': {
+    tag: 'Phe Mũ Trắng thắng',
+    headline: 'Mũ Trắng lật kèo ngoạn mục!',
+    subtitle: 'Không có từ khoá vẫn đọc vị được cả bàn.',
+    accentColor: '#6D28D9',
+    bg: '#F3E8FF',
+    role: 'white-hat',
+  },
+  'spy+white': {
+    tag: 'Gián Điệp & Mũ Trắng cùng thắng',
+    headline: 'Màn bắt tay bất ngờ!',
+    subtitle: 'Phe Dân Thường đã không còn giữ được đa số.',
+    accentColor: '#B45309',
+    bg: '#FEF3C7',
+    role: 'spy',
+  },
+}
+
+const ROLE_BADGE_STYLE: Record<Role, { label: string; color: string; bg: string }> = {
+  civilian: { label: 'Dân', color: '#0F766E', bg: '#CCFBF1' },
+  spy: { label: 'Gián', color: '#BE123C', bg: '#FFE4E6' },
+  'white-hat': { label: 'Mũ trắng', color: '#6D28D9', bg: '#F3E8FF' },
+}
 
 export function WinScreen() {
-  const { winner, players, resetGame, whiteHatGuessedWord } = useGameStore()
-  const isCivilianWin = !winner || winner === 'civilian'
-  const isSpyWin = winner === 'spy' || winner === 'spy+white'
-  const isWhiteHatWin = winner === 'white-hat'
+  const winner = useGameStore(s => s.winner)
+  const players = useGameStore(s => s.players)
+  const resetGame = useGameStore(s => s.resetGame)
+  const whiteHatGuessedWord = useGameStore(s => s.whiteHatGuessedWord)
 
-  // Hiệu ứng
-  const [flashActive, setFlashActive] = useState(false)
-  const [stampActive, setStampActive] = useState(false)
-  const [screenShaking, setScreenShaking] = useState(false)
+  const outcome: ResolvedWinner = winner ?? 'civilian'
+  const theme = OUTCOME_THEMES[outcome]
+  const hasClutchWord = Boolean(whiteHatGuessedWord)
 
-  // Danh tính các phe (useMemo tránh duyệt lại mảng mỗi render)
-  const { civilianKeyword, spyKeyword, whiteHats } = useMemo(() => ({
-    civilianKeyword: players.find(p => p.role === 'civilian')?.keyword || 'Chưa rõ',
-    spyKeyword: players.find(p => p.role === 'spy')?.keyword || 'Chưa rõ',
-    whiteHats: players.filter(p => p.role === 'white-hat'),
-  }), [players])
+  const { civilianKeyword, spyKeyword } = useMemo(
+    () => ({
+      civilianKeyword: players.find(p => p.role === 'civilian')?.keyword || '—',
+      spyKeyword: players.find(p => p.role === 'spy')?.keyword || '—',
+    }),
+    [players]
+  )
 
   useEffect(() => {
-    if (isCivilianWin) {
-      setFlashActive(true)
-      playFlashSound()
-      const tFlash = setTimeout(() => setFlashActive(false), 100)
+    const timers: ReturnType<typeof setTimeout>[] = []
+    playVictorySound(outcome)
+    firePartyConfetti(outcome)
+    triggerHaptic([30, 40, 50])
 
-      const tStamp = setTimeout(() => {
-        setStampActive(true)
-        setScreenShaking(true)
-        playStampSound()
-        triggerHaptic(50)
-        const tShake = setTimeout(() => setScreenShaking(false), 240)
-        return () => clearTimeout(tShake)
-      }, 350)
-
-      return () => {
-        clearTimeout(tFlash)
-        clearTimeout(tStamp)
-      }
-    } else if (isSpyWin) {
-      const tStamp = setTimeout(() => {
-        setStampActive(true)
-        playStampSound()
-        triggerHaptic(40)
-      }, 250)
-      return () => clearTimeout(tStamp)
-    } else if (isWhiteHatWin) {
-      playVictorySound()
-      playMarkerSound()
-      const tStamp = setTimeout(() => {
-        setStampActive(true)
-        playStampSound()
-        triggerHaptic(40)
-      }, 250)
-      return () => clearTimeout(tStamp)
+    if (hasClutchWord) {
+      timers.push(setTimeout(() => playStampSound(), 180))
     }
-  }, [isCivilianWin, isSpyWin, isWhiteHatWin])
+    timers.push(setTimeout(() => playFlipSound(), 240))
+
+    return () => {
+      for (const t of timers) clearTimeout(t)
+    }
+  }, [outcome, hasClutchWord])
 
   const handlePlayAgain = () => {
-    playClickSound()
+    playClickSound(1.06)
     triggerHaptic(30)
     resetGame()
   }
 
-  // Nền có lớp phủ tối Scrim điện ảnh giúp chữ luôn nét 100%
-  const bgImage = isCivilianWin
-    ? 'linear-gradient(180deg, rgba(10, 8, 6, 0.52) 0%, rgba(10, 8, 6, 0.35) 40%, rgba(10, 8, 6, 0.72) 100%), url(/assets/civilian-win.webp)'
-    : isSpyWin
-    ? 'linear-gradient(180deg, rgba(10, 7, 6, 0.58) 0%, rgba(10, 7, 6, 0.40) 40%, rgba(10, 7, 6, 0.76) 100%), url(/assets/spy-win.webp)'
-    : 'linear-gradient(180deg, rgba(10, 8, 6, 0.55) 0%, rgba(10, 8, 6, 0.36) 40%, rgba(10, 8, 6, 0.74) 100%), url(/assets/whitehat-win.webp)'
+  const handleGoHome = () => {
+    playClickSound(0.94)
+    triggerHaptic(20)
+    resetGame()
+    useGameStore.setState({ phase: 'home' })
+  }
 
   return (
-    <div
-      className={`w-full min-h-dvh flex flex-col justify-between p-4 pb-6 max-w-[440px] mx-auto relative select-none box-border overflow-y-auto ${screenShaking ? 'screen-shake' : ''}`}
-      style={{
-        backgroundImage: bgImage,
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-      }}
-    >
-      {/* Chớp Flash máy ảnh */}
-      <div className={`camera-flash ${flashActive ? 'active' : ''}`} aria-hidden="true" />
+    <div className="w-full h-full flex flex-col justify-between px-4 py-3.5 gap-2.5 select-none overflow-hidden">
+      {/* 1. Clean Winner Card (Zero Sparkle / AI icon clutter) */}
+      <motion.section
+        initial={{ opacity: 0, scale: 0.94, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        transition={{ type: 'spring', damping: 22, stiffness: 300 }}
+        className="rounded-2xl px-4 py-3.5 text-center shrink-0 space-y-1.5"
+        style={{
+          backgroundColor: theme.bg,
+          border: `2px solid ${INK}`,
+          boxShadow: `0 3px 0 ${INK}`,
+        }}
+      >
+        <div className="flex items-center justify-center gap-2">
+          <RoleEmblem role={theme.role} size={32} />
+          <span
+            className="px-3 py-0.5 rounded-full text-[0.74rem] font-extrabold"
+            style={{
+              fontFamily: 'var(--font-display)',
+              backgroundColor: '#FFFFFF',
+              color: theme.accentColor,
+              border: `1.5px solid ${INK}`,
+            }}
+          >
+            {theme.tag}
+          </span>
+        </div>
 
-      {/* ── PHẦN ĐẦU: BADGE & TIÊU ĐỀ THẮNG SẮC NÉT ── */}
-      <div className="w-full flex flex-col items-center text-center pt-2 z-10 space-y-2">
-        {/* Con dấu danh hiệu */}
-        <Tilted deg={-2}>
-          {isCivilianWin && (
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#1d4ed8] text-white text-[0.72rem] font-black uppercase tracking-widest border border-[#93c5fd] shadow-[2px_2px_0_#000]"
-              style={{ fontFamily: 'var(--font-stamp)' }}
-            >
-              <ShieldCheck size={14} weight="bold" />
-              TÒA ÁN ĐIỆP VIÊN • PHÁ ÁN THÀNH CÔNG
-            </span>
-          )}
-          {isSpyWin && (
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#b91c1c] text-white text-[0.72rem] font-black uppercase tracking-widest border border-[#fca5a5] shadow-[2px_2px_0_#000]"
-              style={{ fontFamily: 'var(--font-stamp)' }}
-            >
-              <EyeClosed size={14} weight="bold" />
-              BÁO ĐỘNG ĐỎ • TÌNH BÁO THẤT THỦ
-            </span>
-          )}
-          {isWhiteHatWin && (
-            <span
-              className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#6d28d9] text-white text-[0.72rem] font-black uppercase tracking-widest border border-[#d8b4fe] shadow-[2px_2px_0_#000]"
-              style={{ fontFamily: 'var(--font-stamp)' }}
-            >
-              <Ghost size={14} weight="bold" />
-              BẬC THẦY DIỄN XUẤT • LẬT KÈO THÀNH CÔNG
-            </span>
-          )}
-        </Tilted>
-
-        {/* Tiêu đề chính chữ to, sắc bén, tương phản tuyệt đối */}
         <h1
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 'clamp(2rem, 8.5vw, 2.7rem)',
-            fontWeight: 900,
-            lineHeight: 1.12,
-            letterSpacing: '-0.02em',
-            color: '#ffffff',
-            textShadow: '0 3px 0 #000000, 0 6px 14px rgba(0, 0, 0, 0.95)',
-          }}
+          className="text-[1.35rem] font-black leading-tight"
+          style={{ fontFamily: 'var(--font-display)', color: INK }}
         >
-          {isCivilianWin && (
-            <>
-              DÂN THƯỜNG <br />
-              <span className="text-[#60a5fa]">CHIẾN THẮNG!</span>
-            </>
-          )}
-          {isSpyWin && (
-            <>
-              GIÁN ĐIỆP <br />
-              <span className="text-[#f87171]">ĐÃ TẨU THOÁT!</span>
-            </>
-          )}
-          {isWhiteHatWin && (
-            <>
-              MŨ TRẮNG <br />
-              <span className="text-[#c084fc]">CHIẾN THẮNG!</span>
-            </>
-          )}
+          {theme.headline}
         </h1>
+        <p className="text-xs font-medium" style={{ color: '#5B5270' }}>
+          {whiteHatGuessedWord
+            ? `Mũ Trắng đoán trúng từ "${whiteHatGuessedWord}" của phe Dân Thường!`
+            : theme.subtitle}
+        </p>
+      </motion.section>
 
-        {/* Dòng tóm tắt vụ án */}
-        <p
-          className="text-xs font-semibold px-2 text-[#f3ece2]"
+      {/* 2. Side-by-Side Keyword Reveal */}
+      <section className="grid grid-cols-2 gap-2.5 shrink-0">
+        <motion.div
+          initial={{ rotateY: -70, opacity: 0 }}
+          animate={{ rotateY: 0, opacity: 1 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 260, delay: 0.12 }}
+          className="rounded-2xl px-3 py-2.5 text-center"
           style={{
-            fontFamily: 'var(--font-body)',
-            textShadow: '0 1px 4px rgba(0, 0, 0, 0.9)',
+            backgroundColor: '#FFFFFF',
+            border: `2px solid ${INK}`,
+            boxShadow: `0 2px 0 ${INK}`,
           }}
         >
-          {isCivilianWin && 'Toàn bộ gián điệp trà trộn đã bị phơi bày danh tính ra ánh sáng.'}
-          {isSpyWin && 'Mật lệnh đã bị đánh cắp. Gián điệp biến mất hoàn hảo không dấu vết.'}
-          {isWhiteHatWin && (
-            whiteHatGuessedWord
-              ? `Bị biểu quyết loại, Mũ Trắng đã lật kèo xuất sắc khi đoán đúng từ khoá "${civilianKeyword}"!`
-              : 'Không hề có mật lệnh, Mũ Trắng đã ẩn mình và giành chiến thắng ngoạn mục!'
-          )}
-        </p>
-      </div>
+          <span
+            className="block text-[0.68rem] font-extrabold"
+            style={{ fontFamily: 'var(--font-display)', color: '#0F766E' }}
+          >
+            Từ Dân Thường
+          </span>
+          <span
+            className="block text-[1.02rem] font-black leading-snug mt-0.5 truncate"
+            style={{ fontFamily: 'var(--font-display)', color: INK }}
+          >
+            {civilianKeyword}
+          </span>
+        </motion.div>
 
-      {/* ── PHẦN TRUNG TÂM: HỒ SƠ CHỨNG CỨ & SỰ THẬT BẬT MÍ ── */}
-      <div className="w-full my-3 z-10 space-y-3">
-        {/* Thẻ chứng cứ hồ sơ (Tactile Dossier Card) */}
-        <div className="relative bg-[#fcfaf3] border-[1.5px] border-[#18120c] p-4 rounded-[3px] shadow-[5px_5px_0_#18120c]">
-          {/* Tiêu đề thẻ hồ sơ & Con dấu cao su kết luận */}
-          <div className="flex items-center justify-between pb-2.5 border-b border-[#281e15]/20 mb-3 gap-2">
-            <div className="flex items-center gap-1.5 min-w-0">
-              <FileText size={15} weight="fill" className="text-[#8c6530] shrink-0" />
-              <h2
+        <motion.div
+          initial={{ rotateY: 70, opacity: 0 }}
+          animate={{ rotateY: 0, opacity: 1 }}
+          transition={{ type: 'spring', damping: 20, stiffness: 260, delay: 0.2 }}
+          className="rounded-2xl px-3 py-2.5 text-center"
+          style={{
+            backgroundColor: '#FFFFFF',
+            border: `2px solid ${INK}`,
+            boxShadow: `0 2px 0 ${INK}`,
+          }}
+        >
+          <span
+            className="block text-[0.68rem] font-extrabold"
+            style={{ fontFamily: 'var(--font-display)', color: '#BE123C' }}
+          >
+            Từ Gián Điệp
+          </span>
+          <span
+            className="block text-[1.02rem] font-black leading-snug mt-0.5 truncate"
+            style={{ fontFamily: 'var(--font-display)', color: INK }}
+          >
+            {spyKeyword}
+          </span>
+        </motion.div>
+      </section>
+
+      {/* 3. Compact Player Roster (Fits in Remaining Viewport Height) */}
+      <section
+        className="flex-1 min-h-0 rounded-2xl p-3 flex flex-col gap-2 overflow-hidden"
+        style={{
+          backgroundColor: '#FFFFFF',
+          border: `2px solid ${INK}`,
+          boxShadow: `0 3px 0 ${INK}`,
+        }}
+      >
+        <div className="flex items-center justify-between shrink-0">
+          <span
+            className="text-[0.78rem] font-extrabold"
+            style={{ fontFamily: 'var(--font-display)', color: INK }}
+          >
+            Danh sách vai trò ({players.length})
+          </span>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-2 gap-1.5 content-start pr-0.5">
+          {players.map((p, idx) => {
+            const badge = ROLE_BADGE_STYLE[p.role]
+            return (
+              <div
+                key={p.id}
+                className="flex items-center gap-2 px-2 py-1.5 rounded-xl min-w-0"
                 style={{
-                  fontFamily: 'var(--font-body)',
-                  fontSize: '0.74rem',
-                  fontWeight: 800,
-                  color: '#181410',
-                  letterSpacing: '0.06em',
-                  textTransform: 'uppercase',
+                  backgroundColor: '#FAF4E8',
+                  border: '1.5px solid rgba(35, 28, 53, 0.14)',
                 }}
-                className="truncate"
               >
-                BÁO CÁO TỔNG KẾT VỤ ÁN
-              </h2>
-            </div>
-
-            {/* Con dấu cao su BẮT GIỮ / TẨU THOÁT / LẬT KÈO dập gọn gàng trong hàng tiêu đề */}
-            <div
-              style={{
-                fontFamily: 'var(--font-stamp)',
-                fontSize: 'clamp(0.82rem, 2.3vw, 0.98rem)',
-                fontWeight: 900,
-                color: '#b91c1c',
-                letterSpacing: '0.08em',
-                padding: '2px 8px',
-                border: '2px double #b91c1c',
-                backgroundColor: '#fef2f2',
-                boxShadow: '1.5px 1.5px 0 #18120c',
-                transform: stampActive ? 'rotate(-3deg) scale(1)' : 'rotate(-16deg) scale(1.8)',
-                opacity: stampActive ? 1 : 0,
-                transition: 'transform 0.16s cubic-bezier(0.2, 0, 0, 1), opacity 0.08s ease',
-                pointerEvents: 'none',
-                whiteSpace: 'nowrap',
-                flexShrink: 0,
-              }}
-            >
-              {isCivilianWin ? 'ĐÃ BẮT GIỮ' : isSpyWin ? 'TẨU THOÁT' : 'LẬT KÈO'}
-            </div>
-          </div>
-
-          {/* ── BẢNG SO SÁNH TỪ KHOÁ (KEYWORD COMPARISON) ── */}
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            {/* Cột Dân Thường */}
-            <div className="p-2.5 rounded-[2px] bg-[#eff6ff] border-[1.5px] border-[#1d4ed8] text-center shadow-[2px_2px_0_#18120c]">
-              <span
-                className="text-[0.62rem] font-black text-[#1d4ed8] uppercase tracking-wider block mb-0.5"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                🛡️ Phe Dân
-              </span>
-              <span
-                className="text-base font-black text-[#1e3a8a] block truncate"
-                style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}
-              >
-                {civilianKeyword}
-              </span>
-            </div>
-
-            {/* Cột Gián Điệp */}
-            <div className="p-2.5 rounded-[2px] bg-[#fef2f2] border-[1.5px] border-[#b91c1c] text-center shadow-[2px_2px_0_#18120c]">
-              <span
-                className="text-[0.62rem] font-black text-[#b91c1c] uppercase tracking-wider block mb-0.5"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                🕶️ Gián Điệp
-              </span>
-              <span
-                className="text-base font-black text-[#7f1d1d] block truncate"
-                style={{ fontFamily: 'var(--font-display)', letterSpacing: '-0.01em' }}
-              >
-                {spyKeyword}
-              </span>
-            </div>
-          </div>
-
-          {/* Nếu có Mũ Trắng */}
-          {whiteHats.length > 0 && (
-            <div className="p-2 rounded-[2px] bg-[#f5f3ff] border-[1.5px] border-[#6d28d9] text-center mb-3 shadow-[2px_2px_0_#18120c]">
-              <span
-                className="text-[0.62rem] font-black text-[#6d28d9] uppercase tracking-wider inline-block mr-1.5"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                👻 Mũ Trắng ({whiteHats.map(w => w.name).join(', ')}):
-              </span>
-              <span
-                className="text-xs font-extrabold text-[#4c1d95]"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                {isWhiteHatWin
-                  ? `Đoán đúng từ khoá "${whiteHatGuessedWord || civilianKeyword}" để lật kèo thắng!`
-                  : 'Hoàn toàn không có từ khoá!'}
-              </span>
-            </div>
-          )}
-
-          {/* ── DANH TÍNH TOÀN BỘ MỌI NGƯỜI (HIỂN THỊ TRỰC TIẾP) ── */}
-          <div className="pt-2.5 border-t border-[#281e15]/20">
-            <div className="flex items-center justify-between mb-2">
-              <p
-                className="text-[0.68rem] font-extrabold text-[#5c4732] uppercase tracking-wider flex items-center gap-1.5"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                <Users size={14} weight="bold" />
-                DANH TÍNH TẤT CẢ NGƯỜI CHƠI:
-              </p>
-              <span
-                className="text-[0.62rem] font-bold text-[#8c745a]"
-                style={{ fontFamily: 'var(--font-body)' }}
-              >
-                ({players.length} người)
-              </span>
-            </div>
-
-            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-0.5">
-              {players.map((p, i) => {
-                const avatar = getAvatarByIndex(i)
-                const isSpy = p.role === 'spy'
-                const isWhite = p.role === 'white-hat'
-                const isWhiteHatChampion = isWhiteHatWin && isWhite
-
-                const badge = isSpy
-                  ? { bg: '#fef2f2', color: '#b91c1c', border: '#f87171', label: 'GIÁN ĐIỆP' }
-                  : isWhite
-                  ? { bg: '#f5f3ff', color: '#6d28d9', border: '#c084fc', label: 'MŨ TRẮNG' }
-                  : { bg: '#eff6ff', color: '#1d4ed8', border: '#93c5fd', label: 'DÂN THƯỜNG' }
-
-                return (
-                  <div
-                    key={p.id}
-                    className="flex items-center justify-between p-1.5 px-2.5 rounded-[2px] border transition-all"
+                <AvatarPortrait avatar={getAvatarByIndex(idx)} size={30} />
+                <div className="min-w-0 flex-1">
+                  <p
+                    className="text-[0.76rem] font-extrabold truncate leading-tight"
+                    style={{ fontFamily: 'var(--font-display)', color: INK }}
+                  >
+                    {p.name}
+                  </p>
+                  <span
+                    className="inline-block text-[0.64rem] font-bold px-1.5 py-px rounded-md mt-0.5"
                     style={{
-                      backgroundColor: isSpy ? '#fff5f5' : isWhite ? '#faf5ff' : '#f8fafc',
-                      borderColor: isSpy ? '#fca5a5' : isWhite ? '#e9d5ff' : '#cbd5e1',
-                      boxShadow: '1px 1px 0 rgba(0,0,0,0.06)',
+                      backgroundColor: badge.bg,
+                      color: badge.color,
                     }}
                   >
-                    <div className="flex items-center gap-2 min-w-0 pr-2">
-                      <div
-                        className="w-7 h-7 rounded-[2px] flex items-center justify-center text-sm border border-[#18120c] flex-shrink-0"
-                        style={{ backgroundColor: avatar.bg }}
-                      >
-                        {avatar.emoji}
-                      </div>
-                      <div className="min-w-0 truncate">
-                        <p
-                          className="font-extrabold text-xs text-[#181410] truncate"
-                          style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
-                        >
-                          {p.name}
-                        </p>
-                        <p
-                          className="text-[0.64rem] text-[#675543] font-semibold truncate"
-                          style={{ fontFamily: 'system-ui, -apple-system, sans-serif' }}
-                        >
-                          {p.keyword
-                            ? `Từ: "${p.keyword}"`
-                            : isWhiteHatChampion
-                            ? `Đoán trúng: "${whiteHatGuessedWord || civilianKeyword}"`
-                            : 'Không có từ khoá'}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {!p.isAlive && !isWhiteHatChampion && (
-                        <span className="text-[0.58rem] font-bold px-1 py-0.5 rounded-[2px] bg-[#fee2e2] text-[#991b1b] border border-[#fca5a5]">
-                          ĐÃ BỊ LOẠI
-                        </span>
-                      )}
-                      {isWhiteHatChampion && (
-                        <span className="text-[0.58rem] font-bold px-1.5 py-0.5 rounded-[2px] bg-[#fefce8] text-[#854d0e] border border-[#fde047]">
-                          THẮNG CUỘC
-                        </span>
-                      )}
-                      <span
-                        className="text-[0.62rem] font-black px-2 py-0.5 rounded-[2px] border"
-                        style={{
-                          backgroundColor: badge.bg,
-                          color: badge.color,
-                          borderColor: badge.border,
-                          fontFamily: 'var(--font-stamp)',
-                          letterSpacing: '0.04em',
-                        }}
-                      >
-                        {badge.label}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
+                    {badge.label}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
         </div>
-      </div>
+      </section>
 
-      {/* ── PHẦN CUỐI: NÚT CHƠI VÁN MỚI ── */}
-      <div className="w-full pt-1 z-20">
+      {/* 4. Bottom Actions */}
+      <div className="flex gap-2.5 shrink-0">
         <button
-          onClick={handlePlayAgain}
-          className="btn-kraft-stamp w-full py-4 text-base font-black flex items-center justify-center gap-2 cursor-pointer shadow-[4px_4px_0_#18120c]"
-          style={{ letterSpacing: '0.04em' }}
+          type="button"
+          onClick={handleGoHome}
+          aria-label="Về trang chủ"
+          className="btn-party-secondary w-12 flex items-center justify-center shrink-0 cursor-pointer"
         >
-          <ArrowCounterClockwise size={20} weight="bold" />
-          CHƠI VÁN MỚI ↺
+          <House size={20} weight="bold" />
+        </button>
+
+        <button
+          type="button"
+          onClick={handlePlayAgain}
+          className="btn-party-primary flex-1 py-3.5 px-5 text-[0.96rem] inline-flex items-center justify-center gap-2 cursor-pointer"
+        >
+          <ArrowCounterClockwise size={19} weight="bold" />
+          <span>Chơi ván nữa</span>
         </button>
       </div>
     </div>

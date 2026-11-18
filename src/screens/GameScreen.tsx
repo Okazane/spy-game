@@ -1,256 +1,310 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { memo, useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { Flag } from '@phosphor-icons/react'
+import { ArrowCounterClockwise } from '@phosphor-icons/react'
 import { useGameStore, type Player, type Role } from '../stores/gameStore'
 import { playClickSound, triggerHaptic } from '../utils/sound'
 import { getAvatarByIndex } from '../data/avatars'
 import { EliminateDialog, RoleRevealDialog } from '../components/EliminateDialog'
+import { AvatarPortrait } from '../components/PartyVisuals'
 
-const ROLE_BADGE: Record<Role, { label: string; color: string; bg: string; border: string; emoji: string }> = {
-  civilian: { label: 'Dân Thường', color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe', emoji: '🛡️' },
-  spy: { label: 'Gián Điệp', color: '#b91c1c', bg: '#fef2f2', border: '#fecaca', emoji: '🕶️' },
-  'white-hat': { label: 'Mũ Trắng', color: '#6d28d9', bg: '#f5f3ff', border: '#ddd6fe', emoji: '👻' },
+const INK = '#231C35'
+
+const ROLE_STAMP: Record<Role, { label: string; color: string; bg: string; border: string }> = {
+  civilian: {
+    label: 'Dân thường',
+    color: '#0F766E',
+    bg: '#CCFBF1',
+    border: '#0D9488',
+  },
+  spy: {
+    label: 'Gián điệp',
+    color: '#BE123C',
+    bg: '#FFE4E6',
+    border: '#E11D48',
+  },
+  'white-hat': {
+    label: 'Mũ trắng',
+    color: '#6D28D9',
+    bg: '#F3E8FF',
+    border: '#7C3AED',
+  },
 }
 
-
-function PlayerCard({
-  player,
-  index,
-  speakingOrderIndex,
-  onEliminate,
-}: {
+interface PlayerCardProps {
   player: Player
   index: number
   speakingOrderIndex?: number
-  onEliminate: (p: Player) => void
-}) {
+  compact: boolean
+  onEliminate: (player: Player) => void
+}
+
+const PlayerCard = memo(function PlayerCard({
+  player,
+  index,
+  speakingOrderIndex,
+  compact,
+  onEliminate,
+}: PlayerCardProps) {
   const avatar = getAvatarByIndex(index)
+  const stamp = ROLE_STAMP[player.role]
 
   return (
-    <div
+    <motion.button
+      type="button"
+      disabled={!player.isAlive}
+      whileTap={player.isAlive ? { scale: 0.97, y: 2 } : undefined}
       onClick={() => {
-        if (player.isAlive) {
-          playClickSound()
-          triggerHaptic(20)
-          onEliminate(player)
-        }
+        if (!player.isAlive) return
+        playClickSound()
+        triggerHaptic(22)
+        onEliminate(player)
       }}
-      className="w-full flex items-center justify-between gap-3 p-3 px-3.5 rounded-[3px] text-left transition-all cursor-pointer game-card-tactile shadow-[3px_3px_0_#18120c] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
+      className={`relative w-full h-full rounded-2xl flex flex-col items-center justify-between text-center overflow-hidden transition-opacity ${
+        player.isAlive ? 'cursor-pointer' : 'cursor-default opacity-65'
+      }`}
       style={{
-        opacity: player.isAlive ? 1 : 0.55,
+        padding: compact ? '6px 6px' : '10px 8px',
+        backgroundColor: player.isAlive ? '#FFFFFF' : '#F4EFE4',
+        border: `2px solid ${INK}`,
+        boxShadow: player.isAlive ? `0 3px 0 ${INK}` : 'none',
       }}
     >
-      {/* Left info: Avatar & Name */}
-      <div className="flex items-center gap-3 min-w-0 flex-1 pr-1">
-        <div
-          className="w-10 h-10 rounded-[2px] flex items-center justify-center text-xl shadow-[1px_1px_0_#18120c] border border-[#18120c] flex-shrink-0"
-          style={{ backgroundColor: player.isAlive ? avatar.bg : '#d5cbbe' }}
-        >
-          {player.isAlive ? avatar.emoji : '💀'}
-        </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p
-              style={{
-                fontFamily: 'var(--font-display)',
-                fontSize: '0.98rem',
-                fontWeight: 800,
-                color: player.isAlive ? 'var(--ink-primary)' : 'var(--ink-muted)',
-                textDecoration: player.isAlive ? 'none' : 'line-through',
-              }}
-              className="truncate"
-            >
-              {player.name}
-            </p>
-
-            {speakingOrderIndex !== undefined && (
-              <span
-                className="text-[0.68rem] px-2 py-0.5 rounded-[2px] font-black flex-shrink-0 border border-[#18120c]"
-                style={{
-                  backgroundColor: speakingOrderIndex === 1 ? '#c8a165' : '#fcfaf3',
-                  color: '#181410',
-                  fontFamily: 'var(--font-body)',
-                }}
-              >
-                #{speakingOrderIndex}
-              </span>
-            )}
-          </div>
-
-          {!player.isAlive && (
-            <div className="flex items-center gap-1 mt-1">
-              <span
-                className="text-[0.66rem] font-black px-2 py-0.5 rounded-[2px] border inline-flex items-center gap-1 shadow-[1px_1px_0_#18120c]"
-                style={{
-                  backgroundColor: ROLE_BADGE[player.role].bg,
-                  color: ROLE_BADGE[player.role].color,
-                  borderColor: ROLE_BADGE[player.role].color,
-                  fontFamily: 'var(--font-stamp)',
-                }}
-              >
-                <span>{ROLE_BADGE[player.role].emoji}</span>
-                <span>{ROLE_BADGE[player.role].label}</span>
-              </span>
-            </div>
-          )}
-        </div>
+      {/* Top Row: Speaking Order Number */}
+      <div className="w-full flex items-center justify-between">
+        {speakingOrderIndex !== undefined ? (
+          <span
+            className="px-1.5 py-0.5 rounded-md text-[0.66rem] font-black leading-none"
+            style={{
+              fontFamily: 'var(--font-display)',
+              backgroundColor: speakingOrderIndex === 1 ? '#FEF3C7' : '#F2E9D8',
+              color: INK,
+              border: `1.5px solid ${INK}`,
+            }}
+          >
+            #{speakingOrderIndex}
+          </span>
+        ) : (
+          <span />
+        )}
       </div>
 
-      {/* Nút nghi ngờ hoặc nhãn Đã loại */}
-      {player.isAlive ? (
-        <span
-          className="btn-stamp-red text-xs px-3 py-1.5 font-black flex-shrink-0 whitespace-nowrap shadow-[2px_2px_0_#3b0505]"
-          style={{ fontFamily: 'var(--font-body)' }}
+      {/* Center: Avatar + Name */}
+      <div className="flex flex-col items-center min-w-0 w-full my-auto py-0.5">
+        <AvatarPortrait
+          avatar={avatar}
+          size={compact ? 36 : 48}
+          dimmed={!player.isAlive}
+        />
+        <p
+          className={`w-full truncate font-black leading-tight mt-1 px-0.5 ${
+            compact ? 'text-[0.76rem]' : 'text-[0.88rem]'
+          }`}
+          style={{
+            fontFamily: 'var(--font-display)',
+            color: player.isAlive ? INK : '#8C82A0',
+            textDecoration: player.isAlive ? 'none' : 'line-through',
+          }}
         >
-          NGHI NGỜ ✕
-        </span>
-      ) : (
-        <span
-          className="text-xs px-2.5 py-1 rounded-[2px] font-bold text-[#8c7b6b] bg-[#e6ded2] border border-[#281e15]/40 flex-shrink-0 whitespace-nowrap"
-          style={{ fontFamily: 'var(--font-body)' }}
-        >
-          ĐÃ LOẠI
-        </span>
-      )}
-    </div>
-  )
-}
-
-function SuspenseSplash() {
-  return (
-    <motion.div
-      className="fixed inset-0 z-[100] flex flex-col items-center justify-center bg-[#0b0907]"
-      initial={{ opacity: 1 }}
-      exit={{ opacity: 0, transition: { duration: 0.4 } }}
-    >
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 1.05 }}
-        transition={{ duration: 0.7, ease: "easeOut" }}
-        className="text-center px-6"
-      >
-        <h1 style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '2.3rem', color: '#b91c1c', marginBottom: 12, letterSpacing: '-0.02em' }}>
-          HÃY CẨN THẬN...
-        </h1>
-        <p className="text-[#d8cdbd] text-base font-medium" style={{ fontFamily: 'var(--font-body)' }}>
-          Kẻ trà trộn đang ở ngay bên cạnh bạn
+          {player.name}
         </p>
-      </motion.div>
-    </motion.div>
+      </div>
+
+      {/* Bottom: Vote Tag or Eliminated Role Stamp (Zero keyword leak!) */}
+      <div className="w-full">
+        {player.isAlive ? (
+          <span
+            className={`w-full rounded-lg inline-block font-extrabold ${
+              compact ? 'py-0.5 text-[0.64rem]' : 'py-1 text-[0.72rem]'
+            }`}
+            style={{
+              fontFamily: 'var(--font-display)',
+              backgroundColor: '#FFE4E6',
+              color: '#BE123C',
+              border: `1.5px solid ${INK}`,
+            }}
+          >
+            Bỏ phiếu
+          </span>
+        ) : (
+          <span
+            className={`w-full rounded-lg inline-block font-extrabold ${
+              compact ? 'py-0.5 text-[0.64rem]' : 'py-1 text-[0.7rem]'
+            }`}
+            style={{
+              fontFamily: 'var(--font-display)',
+              backgroundColor: stamp.bg,
+              color: stamp.color,
+              border: `1.5px solid ${stamp.border}`,
+            }}
+          >
+            {stamp.label}
+          </span>
+        )}
+      </div>
+    </motion.button>
   )
-}
+})
 
 export function GameScreen() {
-  const { players, eliminatePlayer, speakingOrder, winner, endGame } = useGameStore()
+  const players = useGameStore(s => s.players)
+  const eliminatePlayer = useGameStore(s => s.eliminatePlayer)
+  const speakingOrder = useGameStore(s => s.speakingOrder)
+  const winner = useGameStore(s => s.winner)
+  const endGame = useGameStore(s => s.endGame)
+
   const [pendingPlayer, setPendingPlayer] = useState<Player | null>(null)
   const [revealedPlayer, setRevealedPlayer] = useState<Player | null>(null)
-  const [showSplash, setShowSplash] = useState(true)
   const [showEndConfirm, setShowEndConfirm] = useState(false)
 
+  const effectiveOrder = useMemo(
+    () => (speakingOrder.length > 0 ? speakingOrder : players.map(p => p.id)),
+    [speakingOrder, players]
+  )
+
   useEffect(() => {
-    const t = setTimeout(() => setShowSplash(false), 1800)
-    return () => clearTimeout(t)
-  }, [])
+    if (!showEndConfirm) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowEndConfirm(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [showEndConfirm])
+
+  const playerMap = useMemo(() => {
+    const map = new Map<string, Player>()
+    players.forEach(p => map.set(p.id, p))
+    return map
+  }, [players])
 
   const aliveCount = useMemo(() => players.filter(p => p.isAlive).length, [players])
 
-  const handleEliminate = (player: Player) => setPendingPlayer(player)
-  const handleConfirm = () => {
+  const handleEliminate = useCallback((player: Player) => {
+    setPendingPlayer(player)
+  }, [])
+
+  const handleConfirm = useCallback(() => {
     if (pendingPlayer) {
       eliminatePlayer(pendingPlayer.id)
       setRevealedPlayer(pendingPlayer)
       setPendingPlayer(null)
     }
-  }
+  }, [pendingPlayer, eliminatePlayer])
 
-  // speakingOrder lưu theo player.id — tìm index theo ID
-  const getSpeakingOrderIndex = useCallback((playerId: string) => {
-    const idx = speakingOrder.indexOf(playerId)
-    return idx >= 0 ? idx + 1 : undefined
-  }, [speakingOrder])
+  const getSpeakingOrderIndex = useCallback(
+    (playerId: string) => {
+      const idx = effectiveOrder.indexOf(playerId)
+      return idx >= 0 ? idx + 1 : undefined
+    },
+    [effectiveOrder]
+  )
+
+  const cols = players.length <= 4 ? 2 : players.length <= 9 ? 3 : 4
+  const compact = players.length >= 7
 
   return (
     <>
-      <AnimatePresence mode="wait">
-        {showSplash && <SuspenseSplash key="splash" />}
-      </AnimatePresence>
-
-      <div className="w-full min-h-dvh flex flex-col p-4 pb-6 max-w-[440px] mx-auto relative select-none box-border overflow-x-hidden gap-3">
-
-        {/* ── Header: Số người còn sống + Nút kết thúc ── */}
-        <div className="flex items-center justify-between pt-1 pb-1 border-b border-[#281e15]/20">
-          <div>
-            <p style={{ fontFamily: 'var(--font-display)', fontWeight: 900, fontSize: '1.2rem', color: 'var(--ink-primary)' }}>
-              ĐANG ĐIỀU TRA
-            </p>
-            <p style={{ fontFamily: 'var(--font-body)', fontSize: '0.72rem', color: 'var(--ink-muted)', fontWeight: 700 }}>
-              {aliveCount}/{players.length} điệp viên còn sống
-            </p>
-          </div>
+      <div className="w-full h-full flex flex-col justify-between px-4 py-3.5 gap-2.5 select-none overflow-hidden">
+        {/* 1. Compact Header */}
+        <header className="flex items-center justify-between gap-2 shrink-0">
+          <span
+            className="party-pill text-[0.78rem] font-extrabold"
+            style={{
+              backgroundColor: '#CCFBF1',
+              color: INK,
+              border: `2px solid ${INK}`,
+            }}
+          >
+            Còn {aliveCount}/{players.length} người
+          </span>
 
           <button
+            type="button"
             onClick={() => {
               playClickSound()
-              triggerHaptic(20)
+              triggerHaptic(16)
               setShowEndConfirm(true)
             }}
-            aria-label="Kết thúc ván"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-[2px] font-bold text-xs text-[#b91c1c] bg-[#fdfcf8] border-[1.5px] border-[#b91c1c] cursor-pointer shadow-[2px_2px_0_#b91c1c] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none"
-            style={{ fontFamily: 'var(--font-body)' }}
+            className="btn-party-secondary px-3 py-1.5 text-[0.76rem] inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
           >
-            <Flag size={14} weight="fill" />
-            DỪNG VÁN
+            <ArrowCounterClockwise size={15} weight="bold" />
+            <span>Kết thúc ván</span>
           </button>
-        </div>
+        </header>
 
-        <div className="flex-1">
-          {/* Speaking order bar */}
-          {speakingOrder.length > 0 && (
-            <div className="mb-3">
-              <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-                {speakingOrder.map((playerId, idx) => {
-                  const name = players.find(p => p.id === playerId)?.name ?? playerId
-                  return (
-                    <div
-                      key={playerId}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-[2px] flex-shrink-0 border border-[#281e15] shadow-[1px_1px_0_#18120c]"
-                      style={{
-                        backgroundColor: idx === 0 ? '#fdf8e8' : '#fcfaf3',
-                        borderColor: idx === 0 ? '#8c6530' : '#281e15',
-                      }}
-                    >
-                      <span className="text-xs font-black" style={{ color: idx === 0 ? '#8c6530' : '#675543', fontFamily: 'var(--font-body)' }}>
-                        #{idx + 1}
-                      </span>
-                      <span className="text-xs font-bold text-[var(--ink-primary)]" style={{ fontFamily: 'var(--font-body)' }}>
-                        {name}
-                      </span>
-                      {idx === 0 && <span className="text-xs">👑</span>}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
+        {/* 2. Simple Speaking Order + Names ONLY */}
+        <section
+          className="rounded-2xl px-3 py-2.5 shrink-0"
+          style={{
+            backgroundColor: '#FFFFFF',
+            border: `2px solid ${INK}`,
+            boxShadow: `0 2px 0 ${INK}`,
+          }}
+        >
+          <p
+            className="text-[0.72rem] font-extrabold mb-1.5"
+            style={{ fontFamily: 'var(--font-display)', color: '#5B5270' }}
+          >
+            Thứ tự nói
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {effectiveOrder.map((playerId, idx) => {
+              const p = playerMap.get(playerId)
+              const name = p?.name || `Người ${idx + 1}`
+              const isAlive = p?.isAlive ?? true
+              return (
+                <span
+                  key={playerId}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.75rem] font-bold"
+                  style={{
+                    fontFamily: 'var(--font-sans)',
+                    backgroundColor: idx === 0 && isAlive ? '#FEF3C7' : '#F2E9D8',
+                    color: isAlive ? INK : '#8C82A0',
+                    border: `1.5px solid ${isAlive ? INK : 'rgba(35, 28, 53, 0.2)'}`,
+                    textDecoration: isAlive ? 'none' : 'line-through',
+                    opacity: isAlive ? 1 : 0.55,
+                  }}
+                >
+                  <strong style={{ fontFamily: 'var(--font-display)' }}>{idx + 1}.</strong>
+                  <span className="max-w-[96px] truncate">{name}</span>
+                </span>
+              )
+            })}
+          </div>
+        </section>
 
-          {/* Player Cards List */}
-          <div className="space-y-2.5 pb-6">
+        {/* 3. Auto-Fitting Player Cards Grid (Fits 100% Inside Screen Without Scrolling) */}
+        <section className="flex-1 min-h-0 flex flex-col gap-1.5">
+          <div className="flex items-center justify-between px-0.5 shrink-0">
+            <span
+              className="text-[0.78rem] font-extrabold"
+              style={{ fontFamily: 'var(--font-display)', color: INK }}
+            >
+              Chạm vào người chơi để bỏ phiếu loại
+            </span>
+          </div>
+
+          <div
+            className="flex-1 min-h-0 grid gap-2"
+            style={{
+              gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+              gridAutoRows: 'minmax(0, 1fr)',
+            }}
+          >
             {players.map((player, i) => (
               <PlayerCard
                 key={player.id}
                 player={player}
                 index={i}
                 speakingOrderIndex={getSpeakingOrderIndex(player.id)}
+                compact={compact}
                 onEliminate={handleEliminate}
               />
             ))}
           </div>
-        </div>
+        </section>
       </div>
 
-      {/* Confirm loại người */}
+      {/* Vote Confirmation Modal */}
       <AnimatePresence>
         {pendingPlayer && (
           <EliminateDialog
@@ -262,16 +316,16 @@ export function GameScreen() {
         )}
       </AnimatePresence>
 
-      {/* Role Reveal Dialog */}
+      {/* Role Reveal & White-Hat Comeback Modal */}
       <AnimatePresence>
         {revealedPlayer && (
           <RoleRevealDialog
             player={revealedPlayer}
             playerIndex={players.findIndex(p => p.id === revealedPlayer.id)}
             isGameOver={winner !== null}
-            aliveCount={players.filter(p => p.isAlive).length}
+            aliveCount={aliveCount}
             onContinue={() => {
-              if (winner !== null) {
+              if (useGameStore.getState().winner !== null) {
                 endGame()
               } else {
                 setRevealedPlayer(null)
@@ -281,7 +335,7 @@ export function GameScreen() {
         )}
       </AnimatePresence>
 
-      {/* Dialog xác nhận kết thúc ván */}
+      {/* Early End Confirm Modal */}
       <AnimatePresence>
         {showEndConfirm && (
           <motion.div
@@ -290,42 +344,51 @@ export function GameScreen() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <div className="absolute inset-0 bg-slate-900/65 backdrop-blur-sm" onClick={() => setShowEndConfirm(false)} />
+            <div
+              className="absolute inset-0"
+              style={{ backgroundColor: 'rgba(35, 28, 53, 0.65)' }}
+              onClick={() => setShowEndConfirm(false)}
+            />
+
             <motion.div
-              className="relative w-full max-w-sm bg-[#fcfaf3] rounded-[3px] p-6 shadow-[6px_6px_0_#18120c] border-[1.5px] border-[#18120c] z-10 space-y-4 text-center"
-              initial={{ scale: 0.9, opacity: 0, y: 15 }}
+              className="party-card relative w-full max-w-xs p-5 space-y-4 z-10 text-center"
+              style={{ backgroundColor: '#FFFDF7' }}
+              initial={{ scale: 0.92, opacity: 0, y: 10 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 15 }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+              exit={{ scale: 0.92, opacity: 0, y: 10 }}
+              transition={{ type: 'spring', damping: 24, stiffness: 340 }}
             >
-              <div className="space-y-1">
-                <div className="w-12 h-12 rounded-[2px] mx-auto flex items-center justify-center bg-[#b91c1c] text-white text-2xl mb-2 shadow-[2px_2px_0_#18120c] border border-[#18120c]">
-                  🏳️
-                </div>
-                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 900, color: 'var(--ink-primary)' }}>
-                  DỪNG VÁN ĐẤU?
+              <div className="space-y-1.5">
+                <h3 className="text-lg font-black" style={{ color: INK }}>
+                  Kết thúc ván này sớm?
                 </h3>
-                <p className="text-xs text-[var(--ink-muted)] font-medium" style={{ fontFamily: 'var(--font-body)' }}>
-                  Ván đấu sẽ lập tức khép lại và mở niêm phong toàn bộ danh tính.
+                <p className="text-xs leading-relaxed" style={{ color: '#5B5270' }}>
+                  Cả bàn sẽ lật toàn bộ vai trò và xem từ khoá của hai phe ngay bây giờ.
                 </p>
               </div>
-              <div className="flex gap-2.5 pt-2">
+
+              <div className="flex gap-2.5">
                 <button
-                  onClick={() => setShowEndConfirm(false)}
-                  className="flex-1 py-3 rounded-[2px] font-bold text-xs text-[#181410] bg-[#f4ede0] border-[1.5px] border-[#18120c] cursor-pointer shadow-[2px_2px_0_#18120c] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none"
-                  style={{ fontFamily: 'var(--font-body)' }}
+                  type="button"
+                  onClick={() => {
+                    playClickSound()
+                    setShowEndConfirm(false)
+                  }}
+                  className="btn-party-secondary flex-1 py-2.5 text-sm cursor-pointer"
                 >
-                  TIẾP TỤC ĐIỀU TRA
+                  Chơi tiếp
                 </button>
                 <button
+                  type="button"
                   onClick={() => {
-                    triggerHaptic(40)
+                    playClickSound()
+                    triggerHaptic(30)
                     setShowEndConfirm(false)
                     endGame()
                   }}
-                  className="btn-stamp-red flex-1 py-3 text-xs font-black"
+                  className="btn-party-danger flex-1 py-2.5 text-sm cursor-pointer"
                 >
-                  KẾT THÚC NGAY
+                  Lật bài luôn
                 </button>
               </div>
             </motion.div>
