@@ -13,7 +13,7 @@ export default defineConfig({
       manifest: {
         name: 'Ai Là Gián Điệp? — Trò Chơi Hội Bạn Thân',
         short_name: 'Ai Là Gián Điệp',
-        description: 'Trò chơi bàn tròn suy luận xã hội 3 phe (3–15 người) chơi chung trên 1 điện thoại.',
+        description: 'Trò chơi bàn tròn suy luận xã hội 3 phe (3–20 người) chơi chung trên 1 điện thoại.',
         theme_color: '#FAF4E8',
         background_color: '#FAF4E8',
         display: 'standalone',
@@ -24,7 +24,7 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,webp,woff2}'],
       },
     }),
   ],

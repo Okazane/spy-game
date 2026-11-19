@@ -2,7 +2,7 @@
   "name": "spy-game",
   "private": true,
   "version": "3.0.0",
-  "description": "Ai Là Gián Điệp? — Trò chơi suy luận xã hội 3 phe (Pass & Play 3–15 người) trên 1 điện thoại.",
+  "description": "Ai Là Gián Điệp? — Trò chơi suy luận xã hội 3 phe (Pass & Play 3–20 người) trên 1 điện thoại.",
   "type": "module",
   "scripts": {
     "dev": "vite",

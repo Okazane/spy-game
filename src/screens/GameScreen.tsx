@@ -1,52 +1,92 @@
 import { memo, useState, useEffect, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ArrowCounterClockwise } from '@phosphor-icons/react'
+import {
+  ArrowCounterClockwise,
+  Detective,
+  Ghost,
+  Pause,
+  Play,
+  SmileyWink,
+  Timer,
+  XCircle,
+} from '@phosphor-icons/react'
 import { useGameStore, type Player, type Role } from '../stores/gameStore'
-import { playClickSound, triggerHaptic } from '../utils/sound'
+import {
+  playClickSound,
+  playTimeUpSound,
+  playTimerTickSound,
+  triggerHaptic,
+} from '../utils/sound'
 import { getAvatarByIndex } from '../data/avatars'
 import { EliminateDialog, RoleRevealDialog } from '../components/EliminateDialog'
 import { AvatarPortrait } from '../components/PartyVisuals'
 
 const INK = '#231C35'
+const DEFAULT_TIMER_SECONDS = 90
 
-const ROLE_STAMP: Record<Role, { label: string; color: string; bg: string; border: string }> = {
+const ROLE_STAMP: Record<Role, { label: string; shortLabel: string; color: string; bg: string; border: string }> = {
   civilian: {
     label: 'Dân thường',
+    shortLabel: 'Dân',
     color: '#0F766E',
     bg: '#CCFBF1',
     border: '#0D9488',
   },
   spy: {
     label: 'Gián điệp',
+    shortLabel: 'Gián',
     color: '#BE123C',
     bg: '#FFE4E6',
     border: '#E11D48',
   },
   'white-hat': {
     label: 'Mũ trắng',
+    shortLabel: 'Mũ trắng',
     color: '#6D28D9',
     bg: '#F3E8FF',
     border: '#7C3AED',
   },
 }
 
+function getGridColumns(total: number): number {
+  if (total <= 4) return 2
+  if (total <= 9) return 3
+  if (total <= 16) return 4
+  return 5
+}
+
 interface PlayerCardProps {
   player: Player
   index: number
+  totalPlayers: number
   speakingOrderIndex?: number
-  compact: boolean
   onEliminate: (player: Player) => void
 }
 
 const PlayerCard = memo(function PlayerCard({
   player,
   index,
+  totalPlayers,
   speakingOrderIndex,
-  compact,
   onEliminate,
 }: PlayerCardProps) {
   const avatar = getAvatarByIndex(index)
   const stamp = ROLE_STAMP[player.role]
+  const ultraDense = totalPlayers >= 17
+  const dense = totalPlayers >= 10
+  const compact = totalPlayers >= 7
+  const avatarSize =
+    totalPlayers <= 4
+      ? 78
+      : totalPlayers <= 6
+      ? 66
+      : totalPlayers <= 9
+      ? 52
+      : totalPlayers <= 12
+      ? 42
+      : ultraDense
+      ? 30
+      : 36
 
   return (
     <motion.button
@@ -59,45 +99,77 @@ const PlayerCard = memo(function PlayerCard({
         triggerHaptic(22)
         onEliminate(player)
       }}
-      className={`relative w-full h-full rounded-2xl flex flex-col items-center justify-between text-center overflow-hidden transition-opacity ${
-        player.isAlive ? 'cursor-pointer' : 'cursor-default opacity-65'
+      className={`relative w-full h-full rounded-2xl flex flex-col items-stretch justify-between text-center overflow-hidden transition-opacity ${
+        player.isAlive ? 'cursor-pointer' : 'cursor-default opacity-75'
       }`}
       style={{
-        padding: compact ? '6px 6px' : '10px 8px',
         backgroundColor: player.isAlive ? '#FFFFFF' : '#F4EFE4',
         border: `2px solid ${INK}`,
         boxShadow: player.isAlive ? `0 3px 0 ${INK}` : 'none',
       }}
     >
-      {/* Top Row: Speaking Order Number */}
-      <div className="w-full flex items-center justify-between">
-        {speakingOrderIndex !== undefined ? (
+      {/* Pastel Header Band with Avatar + Corner Turn Badge */}
+      <div
+        className={`relative w-full flex-1 min-h-0 flex items-center justify-center ${
+          ultraDense ? 'py-1' : dense ? 'py-1.5' : compact ? 'py-2' : 'pt-3 pb-2'
+        }`}
+        style={{
+          backgroundColor: player.isAlive ? avatar.bg : '#EAE2D3',
+          borderBottom: '1.5px solid rgba(35, 28, 53, 0.14)',
+        }}
+      >
+        {speakingOrderIndex !== undefined && (
           <span
-            className="px-1.5 py-0.5 rounded-md text-[0.66rem] font-black leading-none"
+            className={`absolute leading-none font-black rounded-md ${
+              ultraDense
+                ? 'top-0.5 left-0.5 px-1 py-0.5 text-[0.55rem]'
+                : dense
+                ? 'top-1 left-1 px-1 py-0.5 text-[0.6rem]'
+                : 'top-1.5 left-1.5 px-1.5 py-0.5 text-[0.66rem]'
+            }`}
             style={{
               fontFamily: 'var(--font-display)',
-              backgroundColor: speakingOrderIndex === 1 ? '#FEF3C7' : '#F2E9D8',
+              backgroundColor: speakingOrderIndex === 1 && player.isAlive ? '#FEF3C7' : '#FFFFFF',
               color: INK,
               border: `1.5px solid ${INK}`,
             }}
           >
             #{speakingOrderIndex}
           </span>
-        ) : (
-          <span />
         )}
-      </div>
 
-      {/* Center: Avatar + Name */}
-      <div className="flex flex-col items-center min-w-0 w-full my-auto py-0.5">
+        {!player.isAlive && (
+          <span className="absolute top-1 right-1" aria-hidden="true">
+            <XCircle size={ultraDense ? 12 : dense ? 13 : 16} weight="fill" color="#8C82A0" />
+          </span>
+        )}
+
         <AvatarPortrait
           avatar={avatar}
-          size={compact ? 36 : 48}
+          size={avatarSize}
           dimmed={!player.isAlive}
         />
+      </div>
+
+      {/* Bottom Body: Clean Player Name (+ Revealed Role Stamp ONLY when eliminated) */}
+      <div
+        className={`w-full shrink-0 flex flex-col items-center justify-center ${
+          ultraDense
+            ? 'px-1 py-1 gap-0.5'
+            : dense
+            ? 'px-1.5 py-1.5 gap-0.5'
+            : 'px-2 py-2 gap-1'
+        }`}
+      >
         <p
-          className={`w-full truncate font-black leading-tight mt-1 px-0.5 ${
-            compact ? 'text-[0.76rem]' : 'text-[0.88rem]'
+          className={`w-full truncate font-black leading-tight ${
+            ultraDense
+              ? 'text-[0.66rem]'
+              : dense
+              ? 'text-[0.74rem]'
+              : compact
+              ? 'text-[0.8rem]'
+              : 'text-[0.9rem]'
           }`}
           style={{
             fontFamily: 'var(--font-display)',
@@ -107,37 +179,24 @@ const PlayerCard = memo(function PlayerCard({
         >
           {player.name}
         </p>
-      </div>
 
-      {/* Bottom: Vote Tag or Eliminated Role Stamp (Zero keyword leak!) */}
-      <div className="w-full">
-        {player.isAlive ? (
+        {!player.isAlive && (
           <span
-            className={`w-full rounded-lg inline-block font-extrabold ${
-              compact ? 'py-0.5 text-[0.64rem]' : 'py-1 text-[0.72rem]'
-            }`}
-            style={{
-              fontFamily: 'var(--font-display)',
-              backgroundColor: '#FFE4E6',
-              color: '#BE123C',
-              border: `1.5px solid ${INK}`,
-            }}
-          >
-            Bỏ phiếu
-          </span>
-        ) : (
-          <span
-            className={`w-full rounded-lg inline-block font-extrabold ${
-              compact ? 'py-0.5 text-[0.64rem]' : 'py-1 text-[0.7rem]'
+            className={`w-full rounded-md inline-block font-extrabold leading-tight ${
+              ultraDense
+                ? 'py-px text-[0.54rem]'
+                : dense
+                ? 'py-0.5 text-[0.58rem]'
+                : 'py-0.5 text-[0.66rem]'
             }`}
             style={{
               fontFamily: 'var(--font-display)',
               backgroundColor: stamp.bg,
               color: stamp.color,
-              border: `1.5px solid ${stamp.border}`,
+              border: `1px solid ${stamp.border}`,
             }}
           >
-            {stamp.label}
+            {ultraDense ? stamp.shortLabel : stamp.label}
           </span>
         )}
       </div>
@@ -149,12 +208,13 @@ export function GameScreen() {
   const players = useGameStore(s => s.players)
   const eliminatePlayer = useGameStore(s => s.eliminatePlayer)
   const speakingOrder = useGameStore(s => s.speakingOrder)
-  const winner = useGameStore(s => s.winner)
   const endGame = useGameStore(s => s.endGame)
 
   const [pendingPlayer, setPendingPlayer] = useState<Player | null>(null)
   const [revealedPlayer, setRevealedPlayer] = useState<Player | null>(null)
   const [showEndConfirm, setShowEndConfirm] = useState(false)
+  const [timerSeconds, setTimerSeconds] = useState(DEFAULT_TIMER_SECONDS)
+  const [timerRunning, setTimerRunning] = useState(false)
 
   const effectiveOrder = useMemo(
     () => (speakingOrder.length > 0 ? speakingOrder : players.map(p => p.id)),
@@ -170,13 +230,57 @@ export function GameScreen() {
     return () => window.removeEventListener('keydown', onKey)
   }, [showEndConfirm])
 
+  useEffect(() => {
+    if (!timerRunning) return
+    const id = window.setInterval(() => {
+      setTimerSeconds(prev => {
+        if (prev <= 1) {
+          setTimerRunning(false)
+          playTimeUpSound()
+          triggerHaptic([40, 60, 40])
+          return 0
+        }
+        const next = prev - 1
+        if (next <= 5) {
+          playTimerTickSound(true)
+        }
+        return next
+      })
+    }, 1000)
+    return () => window.clearInterval(id)
+  }, [timerRunning])
+
   const playerMap = useMemo(() => {
     const map = new Map<string, Player>()
     players.forEach(p => map.set(p.id, p))
     return map
   }, [players])
 
-  const aliveCount = useMemo(() => players.filter(p => p.isAlive).length, [players])
+  const { aliveCount, aliveCivilian, aliveSpy, aliveWhiteHat, hasSpy, hasWhiteHat } = useMemo(() => {
+    let alive = 0
+    let civilian = 0
+    let spy = 0
+    let whiteHat = 0
+    let anySpy = false
+    let anyWhiteHat = false
+    for (const p of players) {
+      if (p.role === 'spy') anySpy = true
+      if (p.role === 'white-hat') anyWhiteHat = true
+      if (!p.isAlive) continue
+      alive += 1
+      if (p.role === 'civilian') civilian += 1
+      else if (p.role === 'spy') spy += 1
+      else whiteHat += 1
+    }
+    return {
+      aliveCount: alive,
+      aliveCivilian: civilian,
+      aliveSpy: spy,
+      aliveWhiteHat: whiteHat,
+      hasSpy: anySpy,
+      hasWhiteHat: anyWhiteHat,
+    }
+  }, [players])
 
   const handleEliminate = useCallback((player: Player) => {
     setPendingPlayer(player)
@@ -198,24 +302,85 @@ export function GameScreen() {
     [effectiveOrder]
   )
 
-  const cols = players.length <= 4 ? 2 : players.length <= 9 ? 3 : 4
-  const compact = players.length >= 7
+  const handleToggleTimer = () => {
+    if (timerSeconds === 0) {
+      playClickSound(1.06)
+      setTimerSeconds(DEFAULT_TIMER_SECONDS)
+      setTimerRunning(true)
+      return
+    }
+    playClickSound(timerRunning ? 0.94 : 1.06)
+    triggerHaptic(14)
+    setTimerRunning(prev => !prev)
+  }
+
+  const handleResetTimer = () => {
+    playClickSound(0.9)
+    triggerHaptic(12)
+    setTimerRunning(false)
+    setTimerSeconds(DEFAULT_TIMER_SECONDS)
+  }
+
+  const cols = getGridColumns(players.length)
+  const dense = players.length >= 10
+  const isTimerUrgent = timerSeconds <= 15
 
   return (
     <>
-      <div className="w-full h-full flex flex-col justify-between px-4 py-3.5 gap-2.5 select-none overflow-hidden">
-        {/* 1. Compact Header */}
-        <header className="flex items-center justify-between gap-2 shrink-0">
+      <div className="w-full h-full flex flex-col justify-between px-4 py-3 gap-2 select-none overflow-hidden">
+        {/* 1. Top Bar: Alive Count + 90s Timer Chip + End Game */}
+        <header className="flex items-center justify-between gap-1.5 shrink-0">
           <span
-            className="party-pill text-[0.78rem] font-extrabold"
+            className="party-pill px-2.5 py-1 text-[0.74rem] font-extrabold shrink-0"
             style={{
               backgroundColor: '#CCFBF1',
               color: INK,
               border: `2px solid ${INK}`,
             }}
           >
-            Còn {aliveCount}/{players.length} người
+            Còn {aliveCount}/{players.length}
           </span>
+
+          {/* Compact 90s Timer Chip */}
+          <div
+            className="inline-flex items-center rounded-full overflow-hidden shrink-0"
+            style={{
+              backgroundColor: isTimerUrgent ? '#FFE4E6' : timerRunning ? '#FEF3C7' : '#FFFFFF',
+              border: `2px solid ${INK}`,
+              boxShadow: `0 2px 0 ${INK}`,
+            }}
+          >
+            <button
+              type="button"
+              onClick={handleToggleTimer}
+              aria-label={timerRunning ? 'Tạm dừng đồng hồ' : 'Bắt đầu đồng hồ'}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-[0.74rem] font-black cursor-pointer"
+              style={{
+                fontFamily: 'var(--font-display)',
+                color: isTimerUrgent ? '#BE123C' : INK,
+                fontVariantNumeric: 'tabular-nums',
+              }}
+            >
+              <Timer size={14} weight="bold" />
+              <span>{timerSeconds}s</span>
+              {timerRunning ? <Pause size={12} weight="fill" /> : <Play size={12} weight="fill" />}
+            </button>
+
+            {(timerRunning || timerSeconds !== DEFAULT_TIMER_SECONDS) && (
+              <button
+                type="button"
+                onClick={handleResetTimer}
+                aria-label="Đặt lại 90 giây"
+                className="pr-2 pl-1.5 py-1 inline-flex items-center justify-center cursor-pointer"
+                style={{
+                  borderLeft: '1.5px solid rgba(35, 28, 53, 0.2)',
+                  color: INK,
+                }}
+              >
+                <ArrowCounterClockwise size={12} weight="bold" />
+              </button>
+            )}
+          </div>
 
           <button
             type="button"
@@ -224,16 +389,78 @@ export function GameScreen() {
               triggerHaptic(16)
               setShowEndConfirm(true)
             }}
-            className="btn-party-secondary px-3 py-1.5 text-[0.76rem] inline-flex items-center gap-1.5 shrink-0 cursor-pointer"
+            className="btn-party-secondary px-2.5 py-1 text-[0.74rem] inline-flex items-center gap-1 shrink-0 cursor-pointer"
           >
-            <ArrowCounterClockwise size={15} weight="bold" />
-            <span>Kết thúc ván</span>
+            <ArrowCounterClockwise size={14} weight="bold" />
+            <span>Kết thúc</span>
           </button>
         </header>
 
-        {/* 2. Simple Speaking Order + Names ONLY */}
+        {/* 2. Compact Còn ẩn Pill Row (Zero identity leak; hides 0-spy / 0-white-hat factions) */}
         <section
-          className="rounded-2xl px-3 py-2.5 shrink-0"
+          aria-label="Số vai trò còn ẩn"
+          className="rounded-xl px-2.5 py-1.5 flex items-center justify-between gap-2 shrink-0"
+          style={{
+            backgroundColor: '#FFFDF7',
+            border: '1.5px solid rgba(35, 28, 53, 0.18)',
+          }}
+        >
+          <span
+            className="text-[0.7rem] font-extrabold shrink-0"
+            style={{ fontFamily: 'var(--font-display)', color: '#5B5270' }}
+          >
+            Còn ẩn
+          </span>
+
+          <div className="flex items-center justify-end gap-1.5 flex-wrap">
+            <span
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.68rem] font-extrabold"
+              style={{
+                fontFamily: 'var(--font-display)',
+                backgroundColor: '#CCFBF1',
+                color: '#0F766E',
+                border: '1.5px solid rgba(13, 148, 136, 0.35)',
+              }}
+            >
+              <SmileyWink size={12} weight="duotone" />
+              <span>{aliveCivilian} Dân</span>
+            </span>
+
+            {hasSpy && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.68rem] font-extrabold"
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  backgroundColor: '#FFE4E6',
+                  color: '#BE123C',
+                  border: '1.5px solid rgba(225, 29, 72, 0.35)',
+                }}
+              >
+                <Detective size={12} weight="duotone" />
+                <span>{aliveSpy} Gián điệp</span>
+              </span>
+            )}
+
+            {hasWhiteHat && (
+              <span
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[0.68rem] font-extrabold"
+                style={{
+                  fontFamily: 'var(--font-display)',
+                  backgroundColor: '#F3E8FF',
+                  color: '#6D28D9',
+                  border: '1.5px solid rgba(124, 58, 237, 0.35)',
+                }}
+              >
+                <Ghost size={12} weight="duotone" />
+                <span>{aliveWhiteHat} Mũ trắng</span>
+              </span>
+            )}
+          </div>
+        </section>
+
+        {/* 3. Clean Thứ tự nói Card */}
+        <section
+          className={`rounded-2xl px-3 shrink-0 ${dense ? 'py-2' : 'py-2.5'}`}
           style={{
             backgroundColor: '#FFFFFF',
             border: `2px solid ${INK}`,
@@ -241,12 +468,12 @@ export function GameScreen() {
           }}
         >
           <p
-            className="text-[0.72rem] font-extrabold mb-1.5"
+            className={`font-extrabold ${dense ? 'text-[0.68rem] mb-1' : 'text-[0.72rem] mb-1.5'}`}
             style={{ fontFamily: 'var(--font-display)', color: '#5B5270' }}
           >
             Thứ tự nói
           </p>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1.5 max-h-[82px] overflow-y-auto pr-0.5">
             {effectiveOrder.map((playerId, idx) => {
               const p = playerMap.get(playerId)
               const name = p?.name || `Người ${idx + 1}`
@@ -254,7 +481,9 @@ export function GameScreen() {
               return (
                 <span
                   key={playerId}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[0.75rem] font-bold"
+                  className={`inline-flex items-center gap-1 rounded-full font-bold ${
+                    dense ? 'px-2 py-0.5 text-[0.68rem]' : 'px-2.5 py-0.5 text-[0.74rem]'
+                  }`}
                   style={{
                     fontFamily: 'var(--font-sans)',
                     backgroundColor: idx === 0 && isAlive ? '#FEF3C7' : '#F2E9D8',
@@ -265,29 +494,22 @@ export function GameScreen() {
                   }}
                 >
                   <strong style={{ fontFamily: 'var(--font-display)' }}>{idx + 1}.</strong>
-                  <span className="max-w-[96px] truncate">{name}</span>
+                  <span className="max-w-[92px] truncate">{name}</span>
                 </span>
               )
             })}
           </div>
         </section>
 
-        {/* 3. Auto-Fitting Player Cards Grid (Fits 100% Inside Screen Without Scrolling) */}
-        <section className="flex-1 min-h-0 flex flex-col gap-1.5">
-          <div className="flex items-center justify-between px-0.5 shrink-0">
-            <span
-              className="text-[0.78rem] font-extrabold"
-              style={{ fontFamily: 'var(--font-display)', color: INK }}
-            >
-              Chạm vào người chơi để bỏ phiếu loại
-            </span>
-          </div>
-
+        {/* 4. Clean Player Cards Grid (3..20 players) */}
+        <section className="flex-1 min-h-0 flex flex-col overflow-hidden">
           <div
-            className="flex-1 min-h-0 grid gap-2"
+            className={`flex-1 min-h-0 overflow-y-auto pr-0.5 grid ${
+              players.length >= 17 ? 'gap-1.5' : dense ? 'gap-1.5' : 'gap-2'
+            }`}
             style={{
               gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-              gridAutoRows: 'minmax(0, 1fr)',
+              gridAutoRows: players.length <= 12 ? 'minmax(0, 1fr)' : 'minmax(82px, 1fr)',
             }}
           >
             {players.map((player, i) => (
@@ -295,8 +517,8 @@ export function GameScreen() {
                 key={player.id}
                 player={player}
                 index={i}
+                totalPlayers={players.length}
                 speakingOrderIndex={getSpeakingOrderIndex(player.id)}
-                compact={compact}
                 onEliminate={handleEliminate}
               />
             ))}
@@ -309,7 +531,6 @@ export function GameScreen() {
         {pendingPlayer && (
           <EliminateDialog
             player={pendingPlayer}
-            speakingOrderIndex={getSpeakingOrderIndex(pendingPlayer.id)}
             onConfirm={handleConfirm}
             onCancel={() => setPendingPlayer(null)}
           />
@@ -322,8 +543,6 @@ export function GameScreen() {
           <RoleRevealDialog
             player={revealedPlayer}
             playerIndex={players.findIndex(p => p.id === revealedPlayer.id)}
-            isGameOver={winner !== null}
-            aliveCount={aliveCount}
             onContinue={() => {
               if (useGameStore.getState().winner !== null) {
                 endGame()
@@ -358,14 +577,12 @@ export function GameScreen() {
               exit={{ scale: 0.92, opacity: 0, y: 10 }}
               transition={{ type: 'spring', damping: 24, stiffness: 340 }}
             >
-              <div className="space-y-1.5">
-                <h3 className="text-lg font-black" style={{ color: INK }}>
-                  Kết thúc ván này sớm?
-                </h3>
-                <p className="text-xs leading-relaxed" style={{ color: '#5B5270' }}>
-                  Cả bàn sẽ lật toàn bộ vai trò và xem từ khoá của hai phe ngay bây giờ.
-                </p>
-              </div>
+              <h3
+                className="text-lg font-black"
+                style={{ fontFamily: 'var(--font-display)', color: INK }}
+              >
+                Kết thúc ván hiện tại?
+              </h3>
 
               <div className="flex gap-2.5">
                 <button
@@ -376,7 +593,7 @@ export function GameScreen() {
                   }}
                   className="btn-party-secondary flex-1 py-2.5 text-sm cursor-pointer"
                 >
-                  Chơi tiếp
+                  Huỷ
                 </button>
                 <button
                   type="button"
@@ -388,7 +605,7 @@ export function GameScreen() {
                   }}
                   className="btn-party-danger flex-1 py-2.5 text-sm cursor-pointer"
                 >
-                  Lật bài luôn
+                  Kết thúc
                 </button>
               </div>
             </motion.div>

@@ -20,14 +20,13 @@ import {
 
 const INK = '#231C35'
 
-interface Props {
+interface EliminateDialogProps {
   player: Player
-  speakingOrderIndex?: number
   onConfirm: () => void
   onCancel: () => void
 }
 
-export function EliminateDialog({ player, speakingOrderIndex, onConfirm, onCancel }: Props) {
+export function EliminateDialog({ player, onConfirm, onCancel }: EliminateDialogProps) {
   const players = useGameStore(s => s.players)
   const idx = players.findIndex(p => p.id === player.id)
   const avatar = getAvatarByIndex(idx >= 0 ? idx : 0)
@@ -60,44 +59,24 @@ export function EliminateDialog({ player, speakingOrderIndex, onConfirm, onCance
       />
 
       <motion.div
-        className="party-card relative w-full max-w-sm p-5 space-y-4 z-10 text-center"
+        className="party-card relative w-full max-w-xs p-5 space-y-4 z-10 text-center"
         style={{ backgroundColor: '#FFFDF7' }}
         initial={{ scale: 0.9, opacity: 0, y: 14 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.92, opacity: 0, y: 10 }}
         transition={{ type: 'spring', damping: 23, stiffness: 330 }}
       >
-        <div className="flex flex-col items-center gap-2">
-          <AvatarPortrait avatar={avatar} size={76} />
-          {speakingOrderIndex !== undefined && (
-            <span
-              className="px-2.5 py-0.5 rounded-full text-xs font-extrabold"
-              style={{
-                fontFamily: 'var(--font-display)',
-                backgroundColor: '#F2E9D8',
-                color: INK,
-                border: `1.5px solid ${INK}`,
-              }}
-            >
-              Lượt nói #{speakingOrderIndex}
-            </span>
-          )}
-        </div>
-
-        <div className="space-y-1.5">
+        <div className="flex flex-col items-center gap-2.5">
+          <AvatarPortrait avatar={avatar} size={74} />
           <h3
             className="text-xl font-black leading-snug"
             style={{ fontFamily: 'var(--font-display)', color: INK }}
           >
-            Cả bàn chốt loại{' '}
-            <span style={{ color: '#E11D48' }}>{player.name}</span>?
+            Loại <span style={{ color: '#E11D48' }}>{player.name}</span>?
           </h3>
-          <p className="text-xs leading-relaxed" style={{ color: '#5B5270' }}>
-            Lá bài vai trò của người này sẽ được lật mở ngay sau khi chốt phiếu.
-          </p>
         </div>
 
-        <div className="flex gap-2.5 pt-1">
+        <div className="flex gap-2.5">
           <button
             type="button"
             onClick={() => {
@@ -118,7 +97,7 @@ export function EliminateDialog({ player, speakingOrderIndex, onConfirm, onCance
             }}
             className="btn-party-danger flex-1 py-3 text-sm cursor-pointer"
           >
-            Chốt loại
+            Loại
           </button>
         </div>
       </motion.div>
@@ -126,45 +105,35 @@ export function EliminateDialog({ player, speakingOrderIndex, onConfirm, onCance
   )
 }
 
-interface RevealProps {
+interface RoleRevealDialogProps {
   player: Player
   playerIndex: number
-  isGameOver: boolean
-  aliveCount: number
   onContinue: () => void
 }
 
 const ROLE_REVEAL_THEME: Record<
   Role,
   {
-    headline: string
-    factionLabel: string
-    desc: string
+    label: string
     color: string
     stampBg: string
     border: string
   }
 > = {
   civilian: {
-    headline: 'Là Dân thường!',
-    factionLabel: 'Phe Dân Thường',
-    desc: 'Cả hội vừa loại nhầm một người bên phe Dân thường rồi.',
+    label: 'Dân thường',
     color: '#0F766E',
-    stampBg: '#E6FAF6',
+    stampBg: '#CCFBF1',
     border: '#0D9488',
   },
   spy: {
-    headline: 'Bắt trúng Gián điệp!',
-    factionLabel: 'Phe Gián Điệp',
-    desc: 'Chuẩn xác! Kẻ trà trộn đã bị lộ diện.',
+    label: 'Gián điệp',
     color: '#BE123C',
-    stampBg: '#FFE8EC',
+    stampBg: '#FFE4E6',
     border: '#E11D48',
   },
   'white-hat': {
-    headline: 'Trúng ngay Mũ Trắng!',
-    factionLabel: 'Phe Mũ Trắng',
-    desc: 'Người chơi không có từ khoá vừa lộ diện.',
+    label: 'Mũ trắng',
     color: '#6D28D9',
     stampBg: '#F3E8FF',
     border: '#7C3AED',
@@ -174,10 +143,8 @@ const ROLE_REVEAL_THEME: Record<
 export function RoleRevealDialog({
   player,
   playerIndex,
-  isGameOver,
-  aliveCount,
   onContinue,
-}: RevealProps) {
+}: RoleRevealDialogProps) {
   const role = ROLE_REVEAL_THEME[player.role]
   const avatar = getAvatarByIndex(playerIndex >= 0 ? playerIndex : 0)
   const isWhiteHat = player.role === 'white-hat'
@@ -250,7 +217,7 @@ export function RoleRevealDialog({
       setGuessResult('correct')
       autoNavTimerRef.current = setTimeout(() => {
         triggerContinue()
-      }, 1350)
+      }, 1200)
     } else {
       playEliminateSound()
       triggerHaptic([40, 30])
@@ -278,58 +245,42 @@ export function RoleRevealDialog({
       />
 
       <motion.div
-        className="party-card relative w-full max-w-sm p-5 space-y-4 z-10 text-center"
+        className="party-card relative w-full max-w-xs p-5 space-y-4 z-10 text-center"
         style={{ backgroundColor: '#FFFDF7', transformStyle: 'preserve-3d' }}
         initial={{ rotateY: -86, scale: 0.88, opacity: 0, y: 14 }}
         animate={{ rotateY: 0, scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.92, opacity: 0, y: 10 }}
         transition={{ type: 'spring', damping: 21, stiffness: 270 }}
       >
-        <div className="flex flex-col items-center gap-1.5">
+        {/* Avatar + Player Name + Role Badge */}
+        <div className="flex flex-col items-center gap-2">
           <AvatarPortrait avatar={avatar} size={74} />
           <h3
-            className="text-xl font-black mt-1"
+            className="text-xl font-black leading-tight"
             style={{ fontFamily: 'var(--font-display)', color: INK }}
           >
             {player.name}
           </h3>
-          <span
-            className="px-3 py-0.5 rounded-full text-xs font-extrabold"
+
+          <motion.div
+            initial={{ scale: 1.25, rotate: -4, opacity: 0 }}
+            animate={{ scale: 1, rotate: 0, opacity: 1 }}
+            transition={{ type: 'spring', damping: 16, stiffness: 360, delay: 0.14 }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full"
             style={{
-              fontFamily: 'var(--font-display)',
               backgroundColor: role.stampBg,
-              color: role.color,
-              border: `1.5px solid ${role.border}`,
+              border: `2px solid ${role.border}`,
             }}
           >
-            {role.factionLabel}
-          </span>
-        </div>
-
-        {/* Verdict Stamp */}
-        <motion.div
-          initial={{ scale: 1.25, rotate: -5, opacity: 0 }}
-          animate={{ scale: 1, rotate: -1, opacity: 1 }}
-          transition={{ type: 'spring', damping: 16, stiffness: 360, delay: 0.16 }}
-          className="rounded-2xl p-3.5 space-y-1 text-center"
-          style={{
-            backgroundColor: role.stampBg,
-            border: `2px solid ${role.border}`,
-          }}
-        >
-          <div className="flex items-center justify-center gap-2">
-            <RoleEmblem role={player.role} size={34} />
-            <p
-              className="text-lg font-black leading-snug"
+            <RoleEmblem role={player.role} size={28} />
+            <span
+              className="text-base font-black"
               style={{ fontFamily: 'var(--font-display)', color: role.color }}
             >
-              {role.headline}
-            </p>
-          </div>
-          <p className="text-xs font-medium leading-relaxed" style={{ color: INK }}>
-            {role.desc}
-          </p>
-        </motion.div>
+              {role.label}
+            </span>
+          </motion.div>
+        </div>
 
         {/* White-Hat Comeback Input */}
         {isWhiteHat && guessResult === 'idle' && (
@@ -340,17 +291,12 @@ export function RoleRevealDialog({
               border: `2px solid ${INK}`,
             }}
           >
-            <div className="space-y-0.5">
-              <p
-                className="text-sm font-black"
-                style={{ fontFamily: 'var(--font-display)', color: '#6D28D9' }}
-              >
-                Cơ hội lật kèo của Mũ Trắng
-              </p>
-              <p className="text-xs leading-relaxed" style={{ color: '#5B5270' }}>
-                Đoán đúng từ khoá của Dân Thường sẽ thắng ngay lập tức!
-              </p>
-            </div>
+            <p
+              className="text-sm font-black"
+              style={{ fontFamily: 'var(--font-display)', color: '#6D28D9' }}
+            >
+              Đoán từ Dân thường
+            </p>
 
             <input
               type="text"
@@ -359,10 +305,10 @@ export function RoleRevealDialog({
               onKeyDown={e => {
                 if (e.key === 'Enter') handleGuessSubmit()
               }}
-              placeholder="Nhập từ của Dân Thường..."
+              placeholder="Nhập từ Dân thường..."
               autoFocus
               autoComplete="off"
-              className="w-full px-3.5 py-2.5 rounded-xl text-center text-sm font-bold outline-none select-text"
+              className="w-full px-3.5 py-2 rounded-xl text-center text-sm font-bold outline-none select-text"
               style={{
                 fontFamily: 'var(--font-sans)',
                 backgroundColor: '#FFFFFF',
@@ -389,7 +335,7 @@ export function RoleRevealDialog({
                 className="btn-party-primary flex-1 py-2.5 px-2 text-xs cursor-pointer"
                 style={{ backgroundColor: '#7C3AED' }}
               >
-                Chốt đáp án
+                Đoán
               </button>
             </div>
           </div>
@@ -397,76 +343,59 @@ export function RoleRevealDialog({
 
         {/* White-Hat Correct Guess */}
         {isWhiteHat && guessResult === 'correct' && (
-          <div
-            className="rounded-2xl p-3.5 text-center space-y-2"
-            style={{
-              backgroundColor: '#FEF3C7',
-              border: `2px solid ${INK}`,
-            }}
-          >
-            <p
-              className="text-sm font-black"
-              style={{ fontFamily: 'var(--font-display)', color: '#6D28D9' }}
+          <div className="space-y-2.5">
+            <span
+              className="inline-block px-3.5 py-1.5 rounded-full text-xs font-extrabold"
+              style={{
+                fontFamily: 'var(--font-display)',
+                backgroundColor: '#FEF3C7',
+                color: '#92400E',
+                border: `1.5px solid ${INK}`,
+              }}
             >
-              Đoán chuẩn xác — Lật kèo thành công!
-            </p>
-            <p className="text-xs font-semibold" style={{ color: INK }}>
-              Từ của Dân Thường chính là <strong style={{ color: '#B45309' }}>"{guessInput.trim()}"</strong>.
-            </p>
+              Đoán trúng: "{guessInput.trim()}"
+            </span>
+
             <button
               type="button"
               onClick={triggerContinue}
-              className="btn-party-primary w-full py-2.5 text-sm inline-flex items-center justify-center gap-1.5 cursor-pointer"
+              className="btn-party-primary w-full py-3 text-sm inline-flex items-center justify-center gap-1.5 cursor-pointer"
             >
-              <span>Xem bảng tổng kết</span>
-              <ArrowRight size={16} weight="bold" />
+              <span>Tiếp tục</span>
+              <ArrowRight size={17} weight="bold" />
             </button>
           </div>
         )}
 
         {/* White-Hat Wrong Guess */}
         {isWhiteHat && guessResult === 'wrong' && (
-          <div
-            className="rounded-2xl p-3 text-center space-y-1"
+          <span
+            className="inline-block px-3.5 py-1.5 rounded-full text-xs font-extrabold"
             style={{
+              fontFamily: 'var(--font-display)',
               backgroundColor: '#FFE8EC',
+              color: '#BE123C',
               border: '1.5px solid #E11D48',
             }}
           >
-            <p
-              className="text-sm font-extrabold"
-              style={{ fontFamily: 'var(--font-display)', color: '#E11D48' }}
-            >
-              Chưa đúng từ khoá rồi!
-            </p>
-            <p className="text-xs" style={{ color: '#5B5270' }}>
-              Đáp án <strong>"{guessInput.trim()}"</strong> không khớp.
-            </p>
-          </div>
+            Sai: "{guessInput.trim()}"
+          </span>
         )}
 
         {/* Footer Continue */}
         {(!isWhiteHat || guessResult === 'wrong' || guessResult === 'skipped') && (
-          <div className="pt-0.5 space-y-2.5">
-            <p className="text-xs font-semibold" style={{ color: '#5B5270' }}>
-              {isGameOver
-                ? 'Ván chơi đã phân định thắng thua!'
-                : `Còn ${aliveCount} người chơi — tiếp tục thảo luận nhé.`}
-            </p>
-
-            <button
-              type="button"
-              onClick={() => {
-                playClickSound()
-                triggerHaptic(20)
-                triggerContinue()
-              }}
-              className="btn-party-primary w-full py-3 text-sm inline-flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <span>{isGameOver ? 'Xem kết quả chung cuộc' : 'Tiếp tục ván chơi'}</span>
-              <ArrowRight size={18} weight="bold" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound()
+              triggerHaptic(20)
+              triggerContinue()
+            }}
+            className="btn-party-primary w-full py-3 text-sm inline-flex items-center justify-center gap-2 cursor-pointer"
+          >
+            <span>Tiếp tục</span>
+            <ArrowRight size={18} weight="bold" />
+          </button>
         )}
       </motion.div>
     </motion.div>

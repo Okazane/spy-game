@@ -226,14 +226,22 @@
     padding-left: env(safe-area-inset-left, 0px);
   }
 
-  @media (min-width: 441px) {
+  @media (min-width: 520px) {
+    #root {
+      align-items: center;
+      padding: 14px 0;
+    }
+
     .app-mobile-frame {
-      border-left: 2px solid rgba(35, 28, 53, 0.2);
-      border-right: 2px solid rgba(35, 28, 53, 0.2);
+      height: min(calc(100dvh - 28px), 844px);
+      max-height: min(calc(100dvh - 28px), 844px);
+      margin: auto;
+      border-radius: 30px;
+      border: 2.5px solid var(--border-ink);
       box-shadow:
-        0 0 0 6px rgba(255, 184, 0, 0.07),
-        0 0 0 7px rgba(250, 244, 232, 0.06),
-        0 30px 80px rgba(8, 5, 14, 0.55);
+        0 10px 0 rgba(12, 9, 18, 0.45),
+        0 0 0 6px rgba(255, 184, 0, 0.08),
+        0 30px 80px rgba(8, 5, 14, 0.6);
     }
   }
 

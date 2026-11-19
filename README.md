@@ -1,6 +1,6 @@
 # Ai Là Gián Điệp? — Trò Chơi Hội Bạn Thân
 
-Trò chơi suy luận xã hội **Pass & Play** (chơi chung trên **1 chiếc điện thoại duy nhất** cho nhóm **3–15 người**), lấy cảm hứng từ *Undercover* và *Spyfall* với phong cách thẻ bài bàn tròn ấm áp, đồ họa lá bài **Risograph Court-Card**, âm thanh **Web Audio Foley** giả lập vật liệu thật và bộ **270 cặp từ tiếng Việt thông dụng**.
+Trò chơi suy luận xã hội **Pass & Play** (chơi chung trên **1 chiếc điện thoại duy nhất** cho nhóm **3–20 người**), lấy cảm hứng từ *Undercover* và *Spyfall* với phong cách thẻ bài bàn tròn ấm áp, đồ họa lá bài **Risograph Court-Card**, 20 nhân vật **Pixel Pop-Arcade**, âm thanh **Web Audio Foley** giả lập vật liệu thật và bộ **200 cặp từ tiếng Việt tuyển chọn**.
 
 - **Chơi ngay (Live Demo):** https://spy-game-virid-nine.vercel.app
 - **Hỗ trợ Offline (PWA):** Có thể thêm vào màn hình chính điện thoại (iOS / Android) và chơi không cần mạng.
@@ -14,10 +14,11 @@ Trò chơi suy luận xã hội **Pass & Play** (chơi chung trên **1 chiếc �
   - 8 mẫu mặt lưng bài đối xứng hai đầu vẽ vector riêng biệt (*Thám tử, Mặt nạ, Kính lúp, Phong bì niêm sáp, Áo choàng, Ổ khóa, Mèo điệp viên, Con mắt*).
   - Khi rút bài, rèm nhung tối phủ nền chống nhìn trộm từ góc nghiêng; nhấn giữ trực tiếp lên mặt lá bài để lật 3D xem từ bí mật, thả tay ra lá bài lập tức úp lại.
 - **Chế độ Mù Vai (Ẩn danh tính):** Khi bật *Mù vai*, cả **Dân Thường** và **Gián Điệp** đều nhận diện mạo thẻ bài giống hệt nhau và chỉ thấy từ khoá của mình — không ai biết mình thuộc phe đa số hay thiểu số cho tới khi lắng nghe cả bàn mô tả.
-- **270 cặp từ tiếng Việt chọn lọc (540 từ đơn nhất, 0 trùng lặp):**
-  - **Khởi động (90 cặp):** Đồ vật, món ăn, con vật quen thuộc dễ bắt nhịp.
-  - **Vừa sức (90 cặp):** Nhiều nét tương đồng, đòi hỏi đặt câu khéo léo.
-  - **Xoắn não (90 cặp):** Món ăn anh em, địa điểm du lịch, ứng dụng, tình huống giới trẻ cực sát nghĩa (*Bánh bao / Bánh giò*, *Bánh xèo / Bánh khọt*, *Crush / Người yêu cũ*, *Shopee / TikTok Shop*...).
+- **200 cặp từ tiếng Việt tuyển chọn (400 từ đơn nhất, 0 trùng lặp):**
+  - **Dễ (65 cặp):** Cùng nhóm rõ nét, chung ngữ cảnh đời sống (*Chó / Mèo*, *Dầu gội / Sữa tắm*, *Đàn guitar / Đàn ukulele*...).
+  - **Vừa (70 cặp):** Anh em cùng họ, dễ tả trùng (*Phở bò / Bún bò Huế*, *Bánh cuốn / Bánh ướt*, *Cờ vua / Cờ tướng*...).
+  - **Khó (65 cặp):** Song sinh xoắn não cực sát nghĩa, hớ 1 từ là lộ (*Bánh bao / Bánh giò*, *Bánh xèo / Bánh khọt*, *Shopee / Lazada*, *Mắm tôm / Mắm nêm*...).
+- **Tuỳ chỉnh tự do 3–20 người & vai trò:** Chỉnh linh hoạt số lượng **Người chơi (3–20)**, **Gián điệp (0..N-1)** và **Mũ trắng (0..N-1)** kèm khung preview 20 nhân vật **Pixel Pop-Arcade**.
 - **Âm thanh Board Game Foley thời gian thực (Web Audio API):** Tổng hợp trực tiếp tiếng chẻ xào bài 5 nhịp, tiếng miết giấy lật bài, tiếng đặt bài xuống mặt nỉ, tiếng gõ quân cờ gỗ ngũ cung, tiếng đóng dấu cao su và 3 bản nhạc chiến thắng riêng cho từng phe (có nút Bật/Tắt lưu tự động).
 
 ---
@@ -37,7 +38,7 @@ Trò chơi suy luận xã hội **Pass & Play** (chơi chung trên **1 chiếc �
 - **Frontend:** React 19, TypeScript 6, Vite 8
 - **State Management:** Zustand 5
 - **Styling & Animation:** Tailwind CSS v4, Motion (`motion/react`), Google Fonts (`Nunito` & `Be Vietnam Pro`)
-- **Đồ họa & Âm thanh:** SVG Risograph Playing Cards tự thiết kế, chân dung nhân vật `@dicebear` (`adventurer`), `@phosphor-icons/react`, `canvas-confetti`, Web Audio API (`DynamicsCompressor` + Foley Synthesizer)
+- **Đồ họa & Âm thanh:** SVG Risograph Playing Cards tự thiết kế, 20 chân dung **Pixel Pop-Arcade** (`public/avatars/*.webp`), `@phosphor-icons/react`, `canvas-confetti`, Web Audio API (`DynamicsCompressor` + Foley Synthesizer)
 - **PWA:** `vite-plugin-pwa` (Workbox offline caching)
 
 ---
@@ -58,11 +59,11 @@ spy-game/
     │   ├── EliminateDialog.tsx # Hộp thoại chốt phiếu loại & lật vai + Mũ Trắng đoán từ lật kèo
     │   └── RulesModal.tsx      # Bảng hướng dẫn nhanh 3 vai trò & 4 bước chơi
     ├── data/
-    │   ├── avatars.ts          # 15 chân dung nhân vật minh họa DiceBear & biệt danh ngẫu nhiên
-    │   └── keywords.ts         # 270 cặp từ tiếng Việt thông dụng (90 dễ / 90 vừa / 90 khó)
+    │   ├── avatars.ts          # 20 chân dung Pixel Pop-Arcade (/avatars/01..20.webp) & mật danh
+    │   └── keywords.ts         # 200 cặp từ tiếng Việt tuyển chọn (65 dễ / 70 vừa / 65 khó)
     ├── screens/
-    │   ├── HomeScreen.tsx      # Sảnh chính với quạt 3 lá bài vai trò tương tác
-    │   ├── SetupScreen.tsx     # Sắp bàn chơi gọn 1 màn hình (3–15 người, độ khó, lộ/mù vai)
+    │   ├── HomeScreen.tsx      # Sảnh chính gọn gàng với quạt 3 lá bài vai trò tương tác
+    │   ├── SetupScreen.tsx     # Tuỳ chỉnh tự do 3–20 người, Gián điệp, Mũ trắng, độ khó & lộ/mù vai
     │   ├── RevealScreen.tsx    # Bàn rút bài, xào bài trực tiếp, lật bài 3D & bảng thứ tự nói
     │   ├── GameScreen.tsx      # Màn thảo luận: dải thứ tự nói kèm tên & lưới bỏ phiếu tự co giãn
     │   └── WinScreen.tsx       # Bảng vinh danh phe thắng, so từ khoá 2 phe & danh sách vai trò

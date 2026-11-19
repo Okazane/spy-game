@@ -15,9 +15,9 @@ export interface Player {
 }
 
 export interface GameSettings {
-  totalPlayers: number   // không giới hạn tối đa, tối thiểu 2
-  spyCount: number
-  whiteHatCount: number
+  totalPlayers: number   // từ 3 đến 20 người
+  spyCount: number       // 0 .. totalPlayers - 1
+  whiteHatCount: number  // 0 .. totalPlayers - 1
   difficulty: Difficulty
   hideRole: boolean // Bật: chỉ biết từ khoá, không biết là Dân hay Gián
 }
@@ -74,13 +74,15 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 // Tạo thứ tự phát biểu theo ID người chơi.
-// Quy tắc: Mũ Trắng không bao giờ đứng vị trí 1 hoặc 2.
+// Quy tắc: Ưu tiên Dân/Gián nói đầu để Mũ Trắng không phải nói mù ở đầu vòng.
 function generateSpeakingOrder(players: Player[]): string[] {
   const whiteHatIds = players.filter(p => p.role === 'white-hat').map(p => p.id)
   const nonWhiteHatIds = players.filter(p => p.role !== 'white-hat').map(p => p.id)
 
-  // Nếu không đủ dân/gián cho 2 vị trí đầu (không thể xảy ra với setting hợp lệ), fallback ngẫu nhiên
   if (nonWhiteHatIds.length < 2) {
+    if (nonWhiteHatIds.length === 1) {
+      return [nonWhiteHatIds[0], ...shuffle(whiteHatIds)]
+    }
     return shuffle(players.map(p => p.id))
   }
 
@@ -101,7 +103,7 @@ export function isKeywordMatch(guess: string, target: string): boolean {
   return false
 }
 
-function checkWin(players: Player[]): Winner {
+export function checkWin(players: Player[]): Winner {
   const alive = players.filter(p => p.isAlive)
   const aliveCivilian = alive.filter(p => p.role === 'civilian').length
   const aliveSpy = alive.filter(p => p.role === 'spy').length
@@ -110,39 +112,93 @@ function checkWin(players: Player[]): Winner {
   // Dân Thường thắng: không còn Gián Điệp và Mũ Trắng
   if (aliveSpy === 0 && aliveWhiteHat === 0) return 'civilian'
 
-  // Gián Điệp + Mũ Trắng cùng thắng: ≤3 người còn lại, có cả hai phe
-  if (alive.length <= 3 && aliveSpy > 0 && aliveWhiteHat > 0) return 'spy+white'
-
-  // Gián Điệp thắng:
-  // - Khi không còn Mũ Trắng
-  // - VÀ số Gián Điệp >= số Dân Thường (không còn Dân chiếm đa số)
-  if (
-    aliveWhiteHat === 0 &&
-    aliveSpy > 0 &&
-    aliveSpy >= aliveCivilian
-  ) {
-    return 'spy'
+  // Không còn Dân Thường sống sót: phe ẩn còn sống thắng
+  if (aliveCivilian === 0) {
+    if (aliveSpy > 0 && aliveWhiteHat > 0) return 'spy+white'
+    if (aliveSpy > 0) return 'spy'
+    if (aliveWhiteHat > 0) return 'white-hat'
   }
 
-  // Mũ Trắng thắng khi sống sót: không còn Gián Điệp, và Dân ≤ Mũ Trắng
-  if (aliveSpy === 0 && aliveWhiteHat > 0 && aliveCivilian <= aliveWhiteHat) return 'white-hat'
+  const initialCivilian = players.filter(p => p.role === 'civilian').length
+  const initialSpy = players.filter(p => p.role === 'spy').length
+  const initialWhiteHat = players.filter(p => p.role === 'white-hat').length
 
+  // Nếu bàn chơi truyền thống (Dân thường chiếm đa số ban đầu), áp dụng luật ngang quân số
+  if (initialCivilian > initialSpy + initialWhiteHat) {
+    if (alive.length <= 3 && aliveSpy > 0 && aliveWhiteHat > 0) return 'spy+white'
+    if (aliveWhiteHat === 0 && aliveSpy > 0 && aliveSpy >= aliveCivilian) return 'spy'
+    if (aliveSpy === 0 && aliveWhiteHat > 0 && aliveWhiteHat >= aliveCivilian) return 'white-hat'
+  }
+
+  // Nếu bàn chơi tuỳ chỉnh/hỗn chiến (initialCivilian <= initialSpy + initialWhiteHat),
+  // phe ẩn chỉ thắng khi loại hết Dân thường (aliveCivilian === 0 ở trên) hoặc Mũ trắng đoán trúng từ.
   return null
 }
 
 export function calcCivilian(s: GameSettings): number {
-  return Math.max(1, s.totalPlayers - s.spyCount - s.whiteHatCount)
+  const clamped = clampSettings(s)
+  return Math.max(1, clamped.totalPlayers - clamped.spyCount - clamped.whiteHatCount)
 }
 
 export function clampSettings(s: GameSettings): GameSettings {
-  const total = Math.max(3, Math.min(15, s.totalPlayers))
-  // Clamp spy trước (giới hạn bảo thủ: không tính white hat để đảm bảo civilian > spy)
-  const conservativeMaxSpy = Math.max(1, Math.floor((total - 1) / 2))
-  const spyCount = Math.max(1, Math.min(s.spyCount, conservativeMaxSpy))
-  // Tính maxWhiteHat từ spyCount đã clamp: total - 2*spy - 1 ≥ 0
-  const maxWhiteHat = Math.max(0, total - 2 * spyCount - 1)
-  const whiteHatCount = Math.max(0, Math.min(s.whiteHatCount, maxWhiteHat))
+  const total = Math.max(3, Math.min(20, Math.round(s.totalPlayers || 6)))
+  const maxInfiltrators = total - 1
+
+  let spyCount = Math.max(0, Math.min(maxInfiltrators, Math.round(s.spyCount ?? 1)))
+  let whiteHatCount = Math.max(0, Math.min(maxInfiltrators, Math.round(s.whiteHatCount ?? 0)))
+
+  // Đảm bảo ít nhất 1 Dân thường (spyCount + whiteHatCount <= total - 1)
+  if (spyCount + whiteHatCount > maxInfiltrators) {
+    const overflow = spyCount + whiteHatCount - maxInfiltrators
+    const reduceWhite = Math.min(whiteHatCount, overflow)
+    whiteHatCount -= reduceWhite
+    spyCount = Math.max(0, spyCount - (overflow - reduceWhite))
+  }
+
+  // Đảm bảo ít nhất 1 kẻ ẩn danh (spyCount + whiteHatCount >= 1)
+  if (spyCount + whiteHatCount < 1) {
+    spyCount = 1
+  }
+
   return { ...s, totalPlayers: total, spyCount, whiteHatCount }
+}
+
+function mergeSettings(prev: GameSettings, partial: Partial<GameSettings>): GameSettings {
+  const base = clampSettings(prev)
+  const total =
+    partial.totalPlayers !== undefined
+      ? Math.max(3, Math.min(20, Math.round(partial.totalPlayers || 6)))
+      : base.totalPlayers
+  const maxInfiltrators = total - 1
+
+  const spyProvided = partial.spyCount !== undefined
+  const whiteProvided = partial.whiteHatCount !== undefined
+
+  if (spyProvided && !whiteProvided) {
+    const spyCount = Math.max(0, Math.min(maxInfiltrators, Math.round(partial.spyCount!)))
+    let whiteHatCount = base.whiteHatCount
+    if (spyCount + whiteHatCount > maxInfiltrators) {
+      whiteHatCount = Math.max(0, maxInfiltrators - spyCount)
+    }
+    if (spyCount === 0 && whiteHatCount === 0) {
+      whiteHatCount = 1
+    }
+    return clampSettings({ ...base, ...partial, totalPlayers: total, spyCount, whiteHatCount })
+  }
+
+  if (whiteProvided && !spyProvided) {
+    const whiteHatCount = Math.max(0, Math.min(maxInfiltrators, Math.round(partial.whiteHatCount!)))
+    let spyCount = base.spyCount
+    if (spyCount + whiteHatCount > maxInfiltrators) {
+      spyCount = Math.max(0, maxInfiltrators - whiteHatCount)
+    }
+    if (spyCount === 0 && whiteHatCount === 0) {
+      spyCount = 1
+    }
+    return clampSettings({ ...base, ...partial, totalPlayers: total, spyCount, whiteHatCount })
+  }
+
+  return clampSettings({ ...base, ...partial, totalPlayers: total })
 }
 
 export const useGameStore = create<GameState>((set, get) => ({
@@ -165,12 +221,12 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   setSettings: (s) =>
-    set(state => ({ settings: clampSettings({ ...state.settings, ...s }) })),
+    set(state => ({ settings: mergeSettings(state.settings, s) })),
 
   startGame: () => {
-    const { settings } = get()
-    const { totalPlayers, spyCount, whiteHatCount, difficulty } = settings
-    const civilianCount = calcCivilian(settings)
+    const safeSettings = clampSettings(get().settings)
+    const { totalPlayers, spyCount, whiteHatCount, difficulty } = safeSettings
+    const civilianCount = totalPlayers - spyCount - whiteHatCount
     const keyword = getRandomKeyword(difficulty)
 
     const roles: Role[] = [
@@ -196,11 +252,13 @@ export const useGameStore = create<GameState>((set, get) => ({
     }))
 
     set({
+      settings: safeSettings,
       players,
       phase: 'reveal',
       currentRevealIndex: 0,
       selectedCardIndex: null,
       winner: null,
+      whiteHatGuessedWord: null,
       eliminatedPlayerId: null,
       speakingOrder: [],
     })

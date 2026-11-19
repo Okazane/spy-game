@@ -252,6 +252,7 @@ export function AvatarPortrait({
           height={size}
           draggable={false}
           className="block h-full w-full select-none object-cover"
+          style={{ imageRendering: 'pixelated' }}
         />
       </span>
       {badge != null && badge !== false && (

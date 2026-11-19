@@ -1,6 +1,10 @@
 import { useEffect, useMemo } from 'react'
 import { motion } from 'motion/react'
-import { ArrowCounterClockwise, House } from '@phosphor-icons/react'
+import {
+  ArrowCounterClockwise,
+  Ghost,
+  SlidersHorizontal,
+} from '@phosphor-icons/react'
 import { useGameStore, type Role, type Winner } from '../stores/gameStore'
 import {
   playClickSound,
@@ -21,52 +25,40 @@ const INK = '#231C35'
 type ResolvedWinner = Exclude<Winner, null>
 
 interface OutcomeTheme {
-  tag: string
   headline: string
-  subtitle: string
-  accentColor: string
   bg: string
   role: Role
 }
 
 const OUTCOME_THEMES: Record<ResolvedWinner, OutcomeTheme> = {
   civilian: {
-    tag: 'Phe Dân Thường thắng',
-    headline: 'Cả hội quá tỉnh đòn!',
-    subtitle: 'Đã tìm ra toàn bộ kẻ trà trộn trên bàn.',
-    accentColor: '#0F766E',
+    headline: 'Dân Thường Thắng!',
     bg: '#CCFBF1',
     role: 'civilian',
   },
   spy: {
-    tag: 'Phe Gián Điệp thắng',
-    headline: 'Gián Điệp diễn quá mượt!',
-    subtitle: 'Trà trộn thành công đến tận phút cuối.',
-    accentColor: '#BE123C',
+    headline: 'Gián Điệp Thắng!',
     bg: '#FFE4E6',
     role: 'spy',
   },
   'white-hat': {
-    tag: 'Phe Mũ Trắng thắng',
-    headline: 'Mũ Trắng lật kèo ngoạn mục!',
-    subtitle: 'Không có từ khoá vẫn đọc vị được cả bàn.',
-    accentColor: '#6D28D9',
+    headline: 'Mũ Trắng Thắng!',
     bg: '#F3E8FF',
     role: 'white-hat',
   },
   'spy+white': {
-    tag: 'Gián Điệp & Mũ Trắng cùng thắng',
-    headline: 'Màn bắt tay bất ngờ!',
-    subtitle: 'Phe Dân Thường đã không còn giữ được đa số.',
-    accentColor: '#B45309',
+    headline: 'Gián Điệp & Mũ Trắng Thắng!',
     bg: '#FEF3C7',
     role: 'spy',
   },
 }
 
-const ROLE_BADGE_STYLE: Record<Role, { label: string; color: string; bg: string }> = {
-  civilian: { label: 'Dân', color: '#0F766E', bg: '#CCFBF1' },
-  spy: { label: 'Gián', color: '#BE123C', bg: '#FFE4E6' },
+const ROLE_BADGE_STYLE: Record<
+  Role,
+  { label: string; color: string; bg: string }
+> = {
+  civilian: { label: 'Dân thường', color: '#0F766E', bg: '#CCFBF1' },
+  spy: { label: 'Gián điệp', color: '#BE123C', bg: '#FFE4E6' },
   'white-hat': { label: 'Mũ trắng', color: '#6D28D9', bg: '#F3E8FF' },
 }
 
@@ -74,19 +66,20 @@ export function WinScreen() {
   const winner = useGameStore(s => s.winner)
   const players = useGameStore(s => s.players)
   const resetGame = useGameStore(s => s.resetGame)
+  const startGame = useGameStore(s => s.startGame)
   const whiteHatGuessedWord = useGameStore(s => s.whiteHatGuessedWord)
 
   const outcome: ResolvedWinner = winner ?? 'civilian'
   const theme = OUTCOME_THEMES[outcome]
   const hasClutchWord = Boolean(whiteHatGuessedWord)
 
-  const { civilianKeyword, spyKeyword } = useMemo(
-    () => ({
+  const { civilianKeyword, spyKeyword, hasSpy } = useMemo(() => {
+    return {
       civilianKeyword: players.find(p => p.role === 'civilian')?.keyword || '—',
       spyKeyword: players.find(p => p.role === 'spy')?.keyword || '—',
-    }),
-    [players]
-  )
+      hasSpy: players.some(p => p.role === 'spy'),
+    }
+  }, [players])
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = []
@@ -108,111 +101,174 @@ export function WinScreen() {
     playClickSound(1.06)
     triggerHaptic(30)
     resetGame()
+    startGame()
   }
 
-  const handleGoHome = () => {
+  const handleChangeSettings = () => {
     playClickSound(0.94)
     triggerHaptic(20)
     resetGame()
-    useGameStore.setState({ phase: 'home' })
   }
+
+  const singleColumnRoster = players.length <= 5
+  const denseRoster = players.length >= 9
 
   return (
     <div className="w-full h-full flex flex-col justify-between px-4 py-3.5 gap-2.5 select-none overflow-hidden">
-      {/* 1. Clean Winner Card (Zero Sparkle / AI icon clutter) */}
+      {/* 1. Crisp Winner Headline Card */}
       <motion.section
         initial={{ opacity: 0, scale: 0.94, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ type: 'spring', damping: 22, stiffness: 300 }}
-        className="rounded-2xl px-4 py-3.5 text-center shrink-0 space-y-1.5"
+        className="rounded-2xl px-4 py-3.5 text-center shrink-0 flex flex-col items-center gap-2"
         style={{
           backgroundColor: theme.bg,
           border: `2px solid ${INK}`,
           boxShadow: `0 3px 0 ${INK}`,
         }}
       >
-        <div className="flex items-center justify-center gap-2">
-          <RoleEmblem role={theme.role} size={32} />
+        <div className="flex items-center justify-center gap-2.5">
+          <RoleEmblem role={theme.role} size={36} />
+          <h1
+            className="text-[1.35rem] font-black leading-tight"
+            style={{ fontFamily: 'var(--font-display)', color: INK }}
+          >
+            {theme.headline}
+          </h1>
+        </div>
+
+        {whiteHatGuessedWord && (
           <span
-            className="px-3 py-0.5 rounded-full text-[0.74rem] font-extrabold"
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold"
             style={{
               fontFamily: 'var(--font-display)',
               backgroundColor: '#FFFFFF',
-              color: theme.accentColor,
+              color: '#6D28D9',
               border: `1.5px solid ${INK}`,
             }}
           >
-            {theme.tag}
+            <Ghost size={14} weight="duotone" />
+            <span>Đoán trúng: "{whiteHatGuessedWord}"</span>
           </span>
-        </div>
-
-        <h1
-          className="text-[1.35rem] font-black leading-tight"
-          style={{ fontFamily: 'var(--font-display)', color: INK }}
-        >
-          {theme.headline}
-        </h1>
-        <p className="text-xs font-medium" style={{ color: '#5B5270' }}>
-          {whiteHatGuessedWord
-            ? `Mũ Trắng đoán trúng từ "${whiteHatGuessedWord}" của phe Dân Thường!`
-            : theme.subtitle}
-        </p>
+        )}
       </motion.section>
 
-      {/* 2. Side-by-Side Keyword Reveal */}
-      <section className="grid grid-cols-2 gap-2.5 shrink-0">
-        <motion.div
-          initial={{ rotateY: -70, opacity: 0 }}
-          animate={{ rotateY: 0, opacity: 1 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 260, delay: 0.12 }}
-          className="rounded-2xl px-3 py-2.5 text-center"
-          style={{
-            backgroundColor: '#FFFFFF',
-            border: `2px solid ${INK}`,
-            boxShadow: `0 2px 0 ${INK}`,
-          }}
-        >
-          <span
-            className="block text-[0.68rem] font-extrabold"
-            style={{ fontFamily: 'var(--font-display)', color: '#0F766E' }}
+      {/* 2. Keyword Reveal Row (Centered single card if 0 Spies, otherwise Civilian & Spy) */}
+      {hasSpy ? (
+        <section className="relative grid grid-cols-2 gap-3 shrink-0">
+          <motion.div
+            initial={{ rotateY: -70, opacity: 0 }}
+            animate={{ rotateY: 0, opacity: 1 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 260, delay: 0.12 }}
+            className="rounded-2xl overflow-hidden flex flex-col"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: `2px solid ${INK}`,
+              boxShadow: `0 3px 0 ${INK}`,
+            }}
           >
-            Từ Dân Thường
-          </span>
-          <span
-            className="block text-[1.02rem] font-black leading-snug mt-0.5 truncate"
-            style={{ fontFamily: 'var(--font-display)', color: INK }}
-          >
-            {civilianKeyword}
-          </span>
-        </motion.div>
+            <div
+              className="px-2.5 py-1.5 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#CCFBF1',
+                borderBottom: '1.5px solid rgba(35, 28, 53, 0.14)',
+              }}
+            >
+              <RoleEmblem role="civilian" size={20} />
+              <span
+                className="text-[0.7rem] font-extrabold"
+                style={{ fontFamily: 'var(--font-display)', color: '#0F766E' }}
+              >
+                Từ Dân Thường
+              </span>
+            </div>
+            <div className="px-3 py-2.5 flex-1 flex items-center justify-center min-h-[48px]">
+              <span
+                className="block text-lg font-black leading-tight text-center break-words"
+                style={{ fontFamily: 'var(--font-display)', color: INK }}
+              >
+                {civilianKeyword}
+              </span>
+            </div>
+          </motion.div>
 
-        <motion.div
-          initial={{ rotateY: 70, opacity: 0 }}
-          animate={{ rotateY: 0, opacity: 1 }}
-          transition={{ type: 'spring', damping: 20, stiffness: 260, delay: 0.2 }}
-          className="rounded-2xl px-3 py-2.5 text-center"
-          style={{
-            backgroundColor: '#FFFFFF',
-            border: `2px solid ${INK}`,
-            boxShadow: `0 2px 0 ${INK}`,
-          }}
-        >
-          <span
-            className="block text-[0.68rem] font-extrabold"
-            style={{ fontFamily: 'var(--font-display)', color: '#BE123C' }}
+          <motion.div
+            initial={{ rotateY: 70, opacity: 0 }}
+            animate={{ rotateY: 0, opacity: 1 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 260, delay: 0.2 }}
+            className="rounded-2xl overflow-hidden flex flex-col"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: `2px solid ${INK}`,
+              boxShadow: `0 3px 0 ${INK}`,
+            }}
           >
-            Từ Gián Điệp
-          </span>
-          <span
-            className="block text-[1.02rem] font-black leading-snug mt-0.5 truncate"
-            style={{ fontFamily: 'var(--font-display)', color: INK }}
+            <div
+              className="px-2.5 py-1.5 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#FFE4E6',
+                borderBottom: '1.5px solid rgba(35, 28, 53, 0.14)',
+              }}
+            >
+              <RoleEmblem role="spy" size={20} />
+              <span
+                className="text-[0.7rem] font-extrabold"
+                style={{ fontFamily: 'var(--font-display)', color: '#BE123C' }}
+              >
+                Từ Gián Điệp
+              </span>
+            </div>
+            <div className="px-3 py-2.5 flex-1 flex items-center justify-center min-h-[48px]">
+              <span
+                className="block text-lg font-black leading-tight text-center break-words"
+                style={{ fontFamily: 'var(--font-display)', color: INK }}
+              >
+                {spyKeyword}
+              </span>
+            </div>
+          </motion.div>
+        </section>
+      ) : (
+        <section className="flex justify-center shrink-0">
+          <motion.div
+            initial={{ rotateY: -70, opacity: 0 }}
+            animate={{ rotateY: 0, opacity: 1 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 260, delay: 0.12 }}
+            className="w-full max-w-[240px] rounded-2xl overflow-hidden flex flex-col"
+            style={{
+              backgroundColor: '#FFFFFF',
+              border: `2px solid ${INK}`,
+              boxShadow: `0 3px 0 ${INK}`,
+            }}
           >
-            {spyKeyword}
-          </span>
-        </motion.div>
-      </section>
+            <div
+              className="px-3 py-1.5 flex items-center justify-center gap-1.5"
+              style={{
+                backgroundColor: '#CCFBF1',
+                borderBottom: '1.5px solid rgba(35, 28, 53, 0.14)',
+              }}
+            >
+              <RoleEmblem role="civilian" size={20} />
+              <span
+                className="text-[0.72rem] font-extrabold"
+                style={{ fontFamily: 'var(--font-display)', color: '#0F766E' }}
+              >
+                Từ Dân Thường
+              </span>
+            </div>
+            <div className="px-3 py-2.5 flex items-center justify-center min-h-[48px]">
+              <span
+                className="block text-xl font-black leading-tight text-center break-words"
+                style={{ fontFamily: 'var(--font-display)', color: INK }}
+              >
+                {civilianKeyword}
+              </span>
+            </div>
+          </motion.div>
+        </section>
+      )}
 
-      {/* 3. Compact Player Roster (Fits in Remaining Viewport Height) */}
+      {/* 3. Player Role Roster (Supports 3..20 players cleanly) */}
       <section
         className="flex-1 min-h-0 rounded-2xl p-3 flex flex-col gap-2 overflow-hidden"
         style={{
@@ -221,38 +277,63 @@ export function WinScreen() {
           boxShadow: `0 3px 0 ${INK}`,
         }}
       >
-        <div className="flex items-center justify-between shrink-0">
+        <div className="flex items-center justify-between gap-2 shrink-0">
           <span
-            className="text-[0.78rem] font-extrabold"
+            className="text-[0.82rem] font-extrabold"
             style={{ fontFamily: 'var(--font-display)', color: INK }}
           >
             Danh sách vai trò ({players.length})
           </span>
         </div>
 
-        <div className="flex-1 min-h-0 overflow-y-auto grid grid-cols-2 gap-1.5 content-start pr-0.5">
+        <div
+          className={`flex-1 min-h-0 overflow-y-auto grid content-start pr-0.5 ${
+            singleColumnRoster
+              ? 'grid-cols-1 gap-2'
+              : denseRoster
+              ? 'grid-cols-2 gap-1.5'
+              : 'grid-cols-2 gap-2'
+          }`}
+        >
           {players.map((p, idx) => {
             const badge = ROLE_BADGE_STYLE[p.role]
+            const avatar = getAvatarByIndex(idx)
+            const avatarSize = singleColumnRoster ? 46 : denseRoster ? 32 : 40
+
             return (
               <div
                 key={p.id}
-                className="flex items-center gap-2 px-2 py-1.5 rounded-xl min-w-0"
+                className={`flex items-center gap-2 rounded-xl min-w-0 ${
+                  denseRoster ? 'px-2 py-1.5' : 'px-2.5 py-2'
+                }`}
                 style={{
-                  backgroundColor: '#FAF4E8',
+                  backgroundColor: p.isAlive ? '#FAF4E8' : '#F4EFE4',
                   border: '1.5px solid rgba(35, 28, 53, 0.14)',
+                  opacity: p.isAlive ? 1 : 0.85,
                 }}
               >
-                <AvatarPortrait avatar={getAvatarByIndex(idx)} size={30} />
-                <div className="min-w-0 flex-1">
+                <AvatarPortrait avatar={avatar} size={avatarSize} dimmed={!p.isAlive} />
+
+                <div className="min-w-0 flex-1 flex items-center justify-between gap-1.5">
                   <p
-                    className="text-[0.76rem] font-extrabold truncate leading-tight"
-                    style={{ fontFamily: 'var(--font-display)', color: INK }}
+                    className={`font-extrabold truncate leading-tight ${
+                      denseRoster ? 'text-[0.74rem]' : 'text-[0.82rem]'
+                    }`}
+                    style={{
+                      fontFamily: 'var(--font-display)',
+                      color: p.isAlive ? INK : '#5B5270',
+                      textDecoration: p.isAlive ? 'none' : 'line-through',
+                    }}
                   >
                     {p.name}
                   </p>
+
                   <span
-                    className="inline-block text-[0.64rem] font-bold px-1.5 py-px rounded-md mt-0.5"
+                    className={`shrink-0 font-extrabold rounded-md ${
+                      denseRoster ? 'text-[0.6rem] px-1.5 py-0.5' : 'text-[0.66rem] px-2 py-0.5'
+                    }`}
                     style={{
+                      fontFamily: 'var(--font-display)',
                       backgroundColor: badge.bg,
                       color: badge.color,
                     }}
@@ -266,15 +347,15 @@ export function WinScreen() {
         </div>
       </section>
 
-      {/* 4. Bottom Actions */}
+      {/* 4. Bottom Actions: Đổi cài đặt + Chơi lại */}
       <div className="flex gap-2.5 shrink-0">
         <button
           type="button"
-          onClick={handleGoHome}
-          aria-label="Về trang chủ"
-          className="btn-party-secondary w-12 flex items-center justify-center shrink-0 cursor-pointer"
+          onClick={handleChangeSettings}
+          className="btn-party-secondary px-4 py-3.5 text-[0.88rem] inline-flex items-center justify-center gap-1.5 shrink-0 cursor-pointer"
         >
-          <House size={20} weight="bold" />
+          <SlidersHorizontal size={18} weight="bold" />
+          <span>Đổi cài đặt</span>
         </button>
 
         <button
@@ -283,7 +364,7 @@ export function WinScreen() {
           className="btn-party-primary flex-1 py-3.5 px-5 text-[0.96rem] inline-flex items-center justify-center gap-2 cursor-pointer"
         >
           <ArrowCounterClockwise size={19} weight="bold" />
-          <span>Chơi ván nữa</span>
+          <span>Chơi lại</span>
         </button>
       </div>
     </div>
