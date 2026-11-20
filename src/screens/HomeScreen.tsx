@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react'
-import { ArrowRight, BookOpenText, Cards } from '@phosphor-icons/react'
+import { ArrowRight, BookOpenText, Cards, Trophy } from '@phosphor-icons/react'
 import { useGameStore } from '../stores/gameStore'
 import { RulesModal } from '../components/RulesModal'
+import { DataHubModal } from '../components/DataHubModal'
 import { AVATARS, getAvatarByIndex } from '../data/avatars'
 import { keywords } from '../data/keywords'
 import { AvatarPortrait, RoleEmblem, type PartyRole } from '../components/PartyVisuals'
@@ -62,8 +63,11 @@ const HAND: readonly HandCard[] = [
 
 export function HomeScreen() {
   const [showRules, setShowRules] = useState(false)
+  const [showDataHub, setShowDataHub] = useState(false)
   const [front, setFront] = useState<number | null>(null)
   const reduceMotion = useReducedMotion()
+  const customCount = useGameStore(s => s.customKeywords.length)
+  const goToPhase = useGameStore(s => s.goToPhase)
 
   const handleCardTap = (i: number) => {
     playFlipSound()
@@ -74,13 +78,19 @@ export function HomeScreen() {
   const handleGoSetup = () => {
     playClickSound()
     triggerHaptic(22)
-    useGameStore.setState({ phase: 'setup' })
+    goToPhase('setup')
   }
 
   const handleOpenRules = () => {
     playClickSound()
     triggerHaptic(15)
     setShowRules(true)
+  }
+
+  const handleOpenDataHub = () => {
+    playClickSound()
+    triggerHaptic(15)
+    setShowDataHub(true)
   }
 
   return (
@@ -104,7 +114,8 @@ export function HomeScreen() {
             }}
           >
             <Cards size={15} weight="duotone" color="#FF5A36" aria-hidden="true" />
-            3–20 người · {keywords.length} cặp từ
+            3–20 người · {keywords.length}
+            {customCount > 0 ? ` + ${customCount}` : ''} cặp từ
           </span>
 
           <h1
@@ -280,20 +291,33 @@ export function HomeScreen() {
             <ArrowRight size={20} weight="bold" aria-hidden="true" />
           </button>
 
-          <button
-            type="button"
-            onClick={handleOpenRules}
-            className="btn-party-secondary w-full py-2.5 px-4 text-[0.9rem] font-extrabold flex items-center justify-center gap-2 cursor-pointer"
-            style={{ fontFamily: 'var(--font-display)' }}
-          >
-            <BookOpenText size={18} weight="bold" aria-hidden="true" />
-            Luật chơi
-          </button>
+          <div className="grid grid-cols-2 gap-2.5">
+            <button
+              type="button"
+              onClick={handleOpenRules}
+              className="btn-party-secondary w-full py-2.5 px-3 text-[0.88rem] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              <BookOpenText size={18} weight="bold" aria-hidden="true" />
+              Luật chơi
+            </button>
+
+            <button
+              type="button"
+              onClick={handleOpenDataHub}
+              className="btn-party-secondary w-full py-2.5 px-3 text-[0.88rem] font-extrabold flex items-center justify-center gap-1.5 cursor-pointer"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              <Trophy size={18} weight="duotone" color="#D97706" aria-hidden="true" />
+              Bảng điểm & Từ
+            </button>
+          </div>
         </footer>
       </div>
 
       <AnimatePresence>
         {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+        {showDataHub && <DataHubModal onClose={() => setShowDataHub(false)} />}
       </AnimatePresence>
     </>
   )

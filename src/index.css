@@ -111,7 +111,7 @@
     -webkit-user-select: none;
     user-select: none;
     touch-action: manipulation;
-    overscroll-behavior-y: none;
+    overscroll-behavior: none;
   }
 
   #root {

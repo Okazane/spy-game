@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'motion/react'
-import { ArrowLeft, ArrowRight, Minus, Plus, Question } from '@phosphor-icons/react'
+import { ArrowLeft, ArrowRight, Minus, Plus, Question, Trophy } from '@phosphor-icons/react'
 import { useGameStore, calcCivilian, clampSettings } from '../stores/gameStore'
 import type { Difficulty } from '../data/keywords'
 import { getAvatarByIndex } from '../data/avatars'
@@ -12,6 +12,7 @@ import {
   triggerHaptic,
 } from '../utils/sound'
 import { RulesModal } from '../components/RulesModal'
+import { DataHubModal, type DataHubTab } from '../components/DataHubModal'
 
 const INK = '#231C35'
 
@@ -90,17 +91,27 @@ function Stepper({
 export function SetupScreen() {
   const rawSettings = useGameStore(s => s.settings)
   const previousNames = useGameStore(s => s.previousNames)
+  const customKeywords = useGameStore(s => s.customKeywords)
   const setSettings = useGameStore(s => s.setSettings)
   const startGame = useGameStore(s => s.startGame)
+  const goToPhase = useGameStore(s => s.goToPhase)
 
   const settings = clampSettings(rawSettings)
   const { totalPlayers, spyCount, whiteHatCount, difficulty, hideRole } = settings
+  const includeCustomKeywords = settings.includeCustomKeywords ?? true
+  const customCount = customKeywords.length
   const civilianCount = calcCivilian(settings)
   const maxInfiltrators = totalPlayers - 1
 
   const [showRules, setShowRules] = useState(false)
+  const [dataHubTab, setDataHubTab] = useState<DataHubTab | null>(null)
   const [isEditingTotal, setIsEditingTotal] = useState(false)
   const [draftTotal, setDraftTotal] = useState(String(totalPlayers))
+
+  const difficultyOptions: ReadonlyArray<{ value: Difficulty; label: string; bg: string }> =
+    customCount > 0
+      ? [...DIFFICULTY_OPTIONS, { value: 'custom', label: 'Tự tạo', bg: '#F3E8FF' }]
+      : DIFFICULTY_OPTIONS
 
   const seatRoles: Array<'civilian' | 'spy' | 'white-hat'> = [
     ...Array<'civilian'>(civilianCount).fill('civilian'),
@@ -111,7 +122,7 @@ export function SetupScreen() {
   const handleBackHome = () => {
     playClickSound()
     triggerHaptic(15)
-    useGameStore.setState({ phase: 'home' })
+    goToPhase('home')
   }
 
   const setPlayerCount = (val: number) => {
@@ -197,18 +208,33 @@ export function SetupScreen() {
             Tạo Bàn Chơi
           </h1>
 
-          <button
-            type="button"
-            onClick={() => {
-              playClickSound()
-              triggerHaptic(12)
-              setShowRules(true)
-            }}
-            aria-label="Xem luật chơi"
-            className="btn-party-secondary w-9 h-9 flex items-center justify-center cursor-pointer"
-          >
-            <Question size={19} weight="bold" />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound()
+                triggerHaptic(12)
+                setDataHubTab('keywords')
+              }}
+              aria-label="Mở kho từ tự tạo và bảng điểm"
+              className="btn-party-secondary w-9 h-9 flex items-center justify-center cursor-pointer"
+            >
+              <Trophy size={18} weight="duotone" color="#D97706" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                playClickSound()
+                triggerHaptic(12)
+                setShowRules(true)
+              }}
+              aria-label="Xem luật chơi"
+              className="btn-party-secondary w-9 h-9 flex items-center justify-center cursor-pointer"
+            >
+              <Question size={19} weight="bold" />
+            </button>
+          </div>
         </header>
 
         {/* 2. Balanced Customization Stack */}
@@ -439,15 +465,59 @@ export function SetupScreen() {
               boxShadow: `0 3px 0 ${INK}`,
             }}
           >
-            <span
-              className="block px-0.5 text-[0.82rem] font-extrabold leading-none"
-              style={{ fontFamily: 'var(--font-display)', color: INK }}
-            >
-              Độ khó
-            </span>
+            <div className="flex items-center justify-between gap-2">
+              <span
+                className="px-0.5 text-[0.82rem] font-extrabold leading-none"
+                style={{ fontFamily: 'var(--font-display)', color: INK }}
+              >
+                Độ khó
+              </span>
 
-            <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Độ khó">
-              {DIFFICULTY_OPTIONS.map(opt => {
+              {customCount > 0 && difficulty !== 'custom' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playFlipSound()
+                    triggerHaptic(10)
+                    setSettings({ includeCustomKeywords: !includeCustomKeywords })
+                  }}
+                  className="px-2 py-0.5 rounded-full text-[0.68rem] font-extrabold cursor-pointer"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    backgroundColor: includeCustomKeywords ? '#CCFBF1' : '#F2E9D8',
+                    color: includeCustomKeywords ? '#0F766E' : '#5B5270',
+                    border: `1.5px solid ${INK}`,
+                  }}
+                >
+                  {includeCustomKeywords ? `Gộp +${customCount} từ riêng` : 'Không gộp từ riêng'}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    playClickSound()
+                    triggerHaptic(12)
+                    setDataHubTab('keywords')
+                  }}
+                  className="px-2 py-0.5 rounded-full text-[0.68rem] font-extrabold cursor-pointer"
+                  style={{
+                    fontFamily: 'var(--font-display)',
+                    backgroundColor: '#FAF4E8',
+                    color: '#6D28D9',
+                    border: `1.5px solid ${INK}`,
+                  }}
+                >
+                  {customCount > 0 ? `${customCount} cặp từ riêng` : '+ Từ tự tạo'}
+                </button>
+              )}
+            </div>
+
+            <div
+              className={`grid gap-2 ${customCount > 0 ? 'grid-cols-4' : 'grid-cols-3'}`}
+              role="radiogroup"
+              aria-label="Độ khó"
+            >
+              {difficultyOptions.map(opt => {
                 const selected = difficulty === opt.value
                 return (
                   <motion.button
@@ -462,7 +532,7 @@ export function SetupScreen() {
                       triggerHaptic(14)
                       setSettings({ difficulty: opt.value })
                     }}
-                    className="rounded-xl py-2.5 px-2 text-center cursor-pointer"
+                    className="rounded-xl py-2.5 px-1.5 text-center cursor-pointer"
                     style={{
                       backgroundColor: selected ? opt.bg : '#FAF4E8',
                       border: `2px solid ${INK}`,
@@ -471,7 +541,9 @@ export function SetupScreen() {
                     }}
                   >
                     <span
-                      className="text-[0.9rem] font-black leading-none"
+                      className={`font-black leading-none ${
+                        customCount > 0 ? 'text-[0.82rem]' : 'text-[0.9rem]'
+                      }`}
                       style={{ fontFamily: 'var(--font-display)', color: INK }}
                     >
                       {opt.label}
@@ -555,6 +627,9 @@ export function SetupScreen() {
 
       <AnimatePresence>
         {showRules && <RulesModal onClose={() => setShowRules(false)} />}
+        {dataHubTab && (
+          <DataHubModal initialTab={dataHubTab} onClose={() => setDataHubTab(null)} />
+        )}
       </AnimatePresence>
     </>
   )

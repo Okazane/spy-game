@@ -1,9 +1,15 @@
-export type Difficulty = 'easy' | 'medium' | 'hard'
+export type StandardDifficulty = 'easy' | 'medium' | 'hard'
+export type Difficulty = StandardDifficulty | 'custom'
 
 export interface KeywordPair {
   civilian: string
   spy: string
   difficulty: Difficulty
+}
+
+export interface CustomPairSeed {
+  civilian: string
+  spy: string
 }
 
 /**
@@ -224,32 +230,158 @@ export const keywords: KeywordPair[] = [
 export const KEYWORDS: KeywordPair[] = keywords
 
 // Precompute pools once at module load time (tránh filter O(n) mỗi lần gọi)
-const KEYWORD_POOLS: Record<Difficulty, KeywordPair[]> = {
+const KEYWORD_POOLS: Record<StandardDifficulty, KeywordPair[]> = {
   easy: keywords.filter(k => k.difficulty === 'easy'),
   medium: keywords.filter(k => k.difficulty === 'medium'),
   hard: keywords.filter(k => k.difficulty === 'hard'),
 }
 
-// Lịch sử các cặp từ vừa chơi gần đây (tránh trùng lặp liên tiếp)
-const recentKeywords: string[] = []
-const MAX_RECENT = 25
+export const MAX_RECENT_KEYWORDS = 25
 
-export function getRandomKeyword(difficulty: Difficulty): KeywordPair {
-  const pool = KEYWORD_POOLS[difficulty]
-  const available = pool.filter(p => !recentKeywords.includes(p.civilian))
-  const candidatePool = available.length > 0 ? available : pool
-  const pair = candidatePool[Math.floor(Math.random() * candidatePool.length)]
+export function normalizeKeywordText(s: string): string {
+  return s.trim().toLowerCase().replace(/\s+/g, ' ')
+}
 
-  recentKeywords.push(pair.civilian)
-  if (recentKeywords.length > MAX_RECENT) {
-    recentKeywords.shift()
+/**
+ * Tạo khoá chuẩn hoá bất biến thứ tự `wordA|wordB` (đã sắp xếp tăng dần)
+ * để hoán đổi 50/50 Dân/Gián không bao giờ làm gãy bộ lọc chống lặp từ.
+ */
+export function getCanonicalKeywordKey(wordA: string, wordB: string): string {
+  const a = normalizeKeywordText(wordA)
+  const b = normalizeKeywordText(wordB)
+  return a <= b ? `${a}|${b}` : `${b}|${a}`
+}
+
+// Lịch sử các cặp từ vừa chơi gần đây (lưu dưới dạng canonical key `w1|w2`)
+let recentKeywords: string[] = []
+
+export function getRecentKeywords(): string[] {
+  return [...recentKeywords]
+}
+
+export function setRecentKeywords(keys: readonly string[]): void {
+  const seen = new Set<string>()
+  const cleaned: string[] = []
+  for (const k of keys) {
+    if (typeof k !== 'string' || !k.includes('|')) continue
+    const parts = k.split('|')
+    if (parts.length !== 2) continue
+    const canonical = getCanonicalKeywordKey(parts[0], parts[1])
+    if (!seen.has(canonical)) {
+      seen.add(canonical)
+      cleaned.push(canonical)
+    }
   }
+  recentKeywords = cleaned.slice(-MAX_RECENT_KEYWORDS)
+}
+
+export interface PickKeywordOptions {
+  difficulty: Difficulty
+  includeCustomKeywords?: boolean
+  customPairs?: readonly CustomPairSeed[]
+  recentKeys?: readonly string[]
+  randomFn?: () => number
+}
+
+export interface PickKeywordResult {
+  pair: KeywordPair
+  canonicalKey: string
+  nextRecentKeys: string[]
+}
+
+export function pickNextKeyword({
+  difficulty,
+  includeCustomKeywords = true,
+  customPairs = [],
+  recentKeys = recentKeywords,
+  randomFn = Math.random,
+}: PickKeywordOptions): PickKeywordResult {
+  const normalizedCustom: KeywordPair[] = []
+  const seenPoolKeys = new Set<string>()
+
+  for (const cp of customPairs) {
+    const civ = cp.civilian.trim().replace(/\s+/g, ' ')
+    const spy = cp.spy.trim().replace(/\s+/g, ' ')
+    if (!civ || !spy) continue
+    if (normalizeKeywordText(civ) === normalizeKeywordText(spy)) continue
+    const key = getCanonicalKeywordKey(civ, spy)
+    if (!seenPoolKeys.has(key)) {
+      seenPoolKeys.add(key)
+      normalizedCustom.push({ civilian: civ, spy, difficulty: 'custom' })
+    }
+  }
+
+  let pool: KeywordPair[] = []
+  if (difficulty === 'custom') {
+    pool = normalizedCustom.length > 0 ? normalizedCustom : KEYWORD_POOLS.medium
+  } else {
+    const basePool = KEYWORD_POOLS[difficulty] ?? KEYWORD_POOLS.medium
+    if (includeCustomKeywords && normalizedCustom.length > 0) {
+      pool = [...normalizedCustom]
+      for (const bp of basePool) {
+        const key = getCanonicalKeywordKey(bp.civilian, bp.spy)
+        if (!seenPoolKeys.has(key)) {
+          seenPoolKeys.add(key)
+          pool.push(bp)
+        }
+      }
+    } else {
+      pool = basePool
+    }
+  }
+
+  let workingRecent = [...recentKeys]
+  const recentSet = new Set(workingRecent)
+  let available = pool.filter(p => !recentSet.has(getCanonicalKeywordKey(p.civilian, p.spy)))
+
+  // Khi toàn bộ pool đã đi hết 1 vòng (VD kho tự tạo có ít cặp từ),
+  // bắt đầu chu kỳ mới nhưng giữ lại cặp vừa chơi sát nhất để không lặp liền kề.
+  if (available.length === 0) {
+    const poolKeySet = new Set(pool.map(p => getCanonicalKeywordKey(p.civilian, p.spy)))
+    let lastPlayedInPool: string | null = null
+    for (let i = workingRecent.length - 1; i >= 0; i--) {
+      if (poolKeySet.has(workingRecent[i])) {
+        lastPlayedInPool = workingRecent[i]
+        break
+      }
+    }
+    workingRecent = workingRecent.filter(k => !poolKeySet.has(k) || k === lastPlayedInPool)
+    if (pool.length > 1 && lastPlayedInPool) {
+      available = pool.filter(p => getCanonicalKeywordKey(p.civilian, p.spy) !== lastPlayedInPool)
+    } else {
+      available = pool
+    }
+  }
+
+  const chosen = available[Math.floor(randomFn() * available.length)]
+  const canonicalKey = getCanonicalKeywordKey(chosen.civilian, chosen.spy)
+  const dedupedNext = workingRecent.filter(k => k !== canonicalKey)
+  dedupedNext.push(canonicalKey)
+  const nextRecentKeys = dedupedNext.slice(-MAX_RECENT_KEYWORDS)
 
   // Ngẫu nhiên 50/50 hoán đổi vai trò: Không cố định từ nào là Dân hay Gián
-  const shouldSwap = Math.random() < 0.5
+  const shouldSwap = randomFn() < 0.5
   return {
-    civilian: shouldSwap ? pair.spy : pair.civilian,
-    spy: shouldSwap ? pair.civilian : pair.spy,
-    difficulty: pair.difficulty,
+    pair: {
+      civilian: shouldSwap ? chosen.spy : chosen.civilian,
+      spy: shouldSwap ? chosen.civilian : chosen.spy,
+      difficulty: chosen.difficulty,
+    },
+    canonicalKey,
+    nextRecentKeys,
   }
+}
+
+export function getRandomKeyword(
+  difficulty: Difficulty,
+  options?: { includeCustomKeywords?: boolean; customPairs?: readonly CustomPairSeed[] }
+): KeywordPair {
+  const result = pickNextKeyword({
+    difficulty,
+    includeCustomKeywords: options?.includeCustomKeywords ?? true,
+    customPairs: options?.customPairs ?? [],
+    recentKeys: recentKeywords,
+  })
+  recentKeywords = result.nextRecentKeys
+  return result.pair
 }

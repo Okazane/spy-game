@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode, type CSSProperties } from 'react'
+import { useState, type ReactNode, type CSSProperties } from 'react'
 
 interface TiltedProps {
   children: ReactNode
@@ -9,17 +9,11 @@ interface TiltedProps {
 }
 
 export function Tilted({ children, deg, className = '', style, onClick }: TiltedProps) {
-  const [angle, setAngle] = useState<number>(deg ?? 0)
-
-  useEffect(() => {
-    if (deg !== undefined) {
-      setAngle(deg)
-    } else {
-      // Random tilt between -2.5 and +2.5 degrees
-      const r = (Math.random() * 4.6 - 2.3)
-      setAngle(Number((r > 0 ? r + 0.3 : r - 0.3).toFixed(1)))
-    }
-  }, [deg])
+  const [fallbackAngle] = useState<number>(() => {
+    const r = Math.random() * 4.6 - 2.3
+    return Number((r > 0 ? r + 0.3 : r - 0.3).toFixed(1))
+  })
+  const angle = deg ?? fallbackAngle
 
   return (
     <div

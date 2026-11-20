@@ -1,5 +1,19 @@
 import { create } from 'zustand'
-import { type Difficulty, getRandomKeyword } from '../data/keywords'
+import {
+  type Difficulty,
+  getRandomKeyword,
+  getRecentKeywords,
+  setRecentKeywords,
+} from '../data/keywords.ts'
+import {
+  type CustomKeywordRecord,
+  listCustomKeywords,
+  loadActiveSession,
+  recordMatchVictory,
+  requestPersistentStorage,
+  saveActiveSession,
+  subscribeDataHub,
+} from '../db/gameDb.ts'
 
 export type Role = 'civilian' | 'spy' | 'white-hat'
 export type Phase = 'home' | 'setup' | 'reveal' | 'playing' | 'ended'
@@ -19,22 +33,37 @@ export interface GameSettings {
   spyCount: number       // 0 .. totalPlayers - 1
   whiteHatCount: number  // 0 .. totalPlayers - 1
   difficulty: Difficulty
-  hideRole: boolean // Bật: chỉ biết từ khoá, không biết là Dân hay Gián
+  hideRole: boolean      // Bật: chỉ biết từ khoá, không biết là Dân hay Gián
+  includeCustomKeywords?: boolean // Bật: gộp thêm từ khoá tự tạo vào bộ bài chuẩn
+}
+
+export const DEFAULT_SETTINGS: GameSettings = {
+  totalPlayers: 6,
+  spyCount: 1,
+  whiteHatCount: 0,
+  difficulty: 'medium',
+  hideRole: true,
+  includeCustomKeywords: true,
 }
 
 interface GameState {
+  roundId: string
   players: Player[]
   phase: Phase
   currentRevealIndex: number   // giữ lại cho compatibility
   selectedCardIndex: number | null  // bài đang được lật
   winner: Winner
+  wasAborted: boolean          // true nếu bấm "Kết thúc" sớm trước khi có phe thắng
   settings: GameSettings
   eliminatedPlayerId: string | null
   previousNames: string[]      // tên nhóm ván trước
-  resetCount: number   // tăng mỗi lần reset để AnimatePresence nhận ra màn mới
+  customKeywords: CustomKeywordRecord[]
+  isHydrated: boolean
+  resetCount: number           // tăng mỗi lần reset để AnimatePresence nhận ra màn mới
   speakingOrder: string[]      // thứ tự phát biểu: mảng player.id (không phải tên)
-
   whiteHatGuessedWord: string | null
+
+  goToPhase: (phase: 'home' | 'setup') => void
   setSettings: (s: Partial<GameSettings>) => void
   startGame: () => void
   selectCard: (index: number) => void
@@ -46,10 +75,21 @@ interface GameState {
   endGame: () => void
   resetGame: () => void
   reshuffleSpeakingOrder: () => void
+  refreshCustomKeywords: () => Promise<void>
+  applyBackupPreferences: (prefs?: {
+    settings: GameSettings
+    previousNames: string[]
+    recentKeywords: string[]
+  }) => void
+  resetToFactoryState: () => void
 }
 
 function generateId() {
   return Math.random().toString(36).slice(2, 9)
+}
+
+function generateRoundId() {
+  return `rnd_${Date.now().toString(36)}_${generateId()}`
 }
 
 function cleanText(s: string) {
@@ -74,8 +114,8 @@ function shuffle<T>(arr: T[]): T[] {
 }
 
 // Tạo thứ tự phát biểu theo ID người chơi.
-// Quy tắc: Ưu tiên Dân/Gián nói đầu để Mũ Trắng không phải nói mù ở đầu vòng.
-function generateSpeakingOrder(players: Player[]): string[] {
+// Quy tắc: Ưu tiên Dân/Gián nói đầu để Mũ Trắng không phải nói mù ở đầu vòng (#1 hoặc #2).
+export function generateSpeakingOrder(players: Player[]): string[] {
   const whiteHatIds = players.filter(p => p.role === 'white-hat').map(p => p.id)
   const nonWhiteHatIds = players.filter(p => p.role !== 'white-hat').map(p => p.id)
 
@@ -160,7 +200,13 @@ export function clampSettings(s: GameSettings): GameSettings {
     spyCount = 1
   }
 
-  return { ...s, totalPlayers: total, spyCount, whiteHatCount }
+  return {
+    ...s,
+    totalPlayers: total,
+    spyCount,
+    whiteHatCount,
+    includeCustomKeywords: s.includeCustomKeywords ?? true,
+  }
 }
 
 function mergeSettings(prev: GameSettings, partial: Partial<GameSettings>): GameSettings {
@@ -201,33 +247,49 @@ function mergeSettings(prev: GameSettings, partial: Partial<GameSettings>): Game
   return clampSettings({ ...base, ...partial, totalPlayers: total })
 }
 
+let userMutatedBeforeHydration = false
+
 export const useGameStore = create<GameState>((set, get) => ({
+  roundId: '',
   players: [],
   phase: 'home',
   currentRevealIndex: 0,
   selectedCardIndex: null,
   winner: null,
+  wasAborted: false,
   whiteHatGuessedWord: null,
   eliminatedPlayerId: null,
   previousNames: [],
+  customKeywords: [],
+  isHydrated: false,
   resetCount: 0,
   speakingOrder: [],
-  settings: {
-    totalPlayers: 6,
-    spyCount: 1,
-    whiteHatCount: 0,
-    difficulty: 'medium',
-    hideRole: true,
+  settings: { ...DEFAULT_SETTINGS },
+
+  goToPhase: (phase) => {
+    userMutatedBeforeHydration = true
+    set({ phase })
   },
 
-  setSettings: (s) =>
-    set(state => ({ settings: mergeSettings(state.settings, s) })),
+  setSettings: (s) => {
+    userMutatedBeforeHydration = true
+    set(state => ({ settings: mergeSettings(state.settings, s) }))
+  },
 
   startGame: () => {
-    const safeSettings = clampSettings(get().settings)
-    const { totalPlayers, spyCount, whiteHatCount, difficulty } = safeSettings
+    userMutatedBeforeHydration = true
+    const state = get()
+    const safeSettings = clampSettings(state.settings)
+    const { totalPlayers, spyCount, whiteHatCount, difficulty, includeCustomKeywords } = safeSettings
     const civilianCount = totalPlayers - spyCount - whiteHatCount
-    const keyword = getRandomKeyword(difficulty)
+
+    const effectiveDifficulty: Difficulty =
+      difficulty === 'custom' && state.customKeywords.length === 0 ? 'medium' : difficulty
+
+    const keyword = getRandomKeyword(effectiveDifficulty, {
+      includeCustomKeywords: includeCustomKeywords ?? true,
+      customPairs: state.customKeywords,
+    })
 
     const roles: Role[] = [
       ...Array(spyCount).fill('spy' as Role),
@@ -252,12 +314,14 @@ export const useGameStore = create<GameState>((set, get) => ({
     }))
 
     set({
-      settings: safeSettings,
+      roundId: generateRoundId(),
+      settings: { ...safeSettings, difficulty: effectiveDifficulty },
       players,
       phase: 'reveal',
       currentRevealIndex: 0,
       selectedCardIndex: null,
       winner: null,
+      wasAborted: false,
       whiteHatGuessedWord: null,
       eliminatedPlayerId: null,
       speakingOrder: [],
@@ -266,6 +330,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   // Người chơi bấm vào một lá bài chưa được nhận (đã bấm lá nào là khoá luôn lá đó, không được đổi sang lá khác)
   selectCard: (index) => {
+    userMutatedBeforeHydration = true
     const { players, selectedCardIndex } = get()
     if (players[index]?.claimed) return
     if (selectedCardIndex !== null) return // Đã chọn một lá bài rồi thì không thể đổi nữa
@@ -274,6 +339,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   // Người chơi nhập tên và xác nhận nhận bài
   claimCard: (index, name) => {
+    userMutatedBeforeHydration = true
     set(state => {
       const players = state.players.map((p, i) =>
         i === index
@@ -292,6 +358,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   // Chuyển sang ván chơi sau khi tất cả đã nhận bài
   proceedToGame: () => {
+    userMutatedBeforeHydration = true
     const { players } = get()
     const names = players.map(p => p.name)
     set({ phase: 'playing', previousNames: names })
@@ -299,6 +366,7 @@ export const useGameStore = create<GameState>((set, get) => ({
 
   // Giữ lại cho compatibility
   revealNext: () => {
+    userMutatedBeforeHydration = true
     const { currentRevealIndex, players } = get()
     const nextIndex = currentRevealIndex + 1
     if (nextIndex >= players.length) {
@@ -309,6 +377,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   eliminatePlayer: (id) => {
+    userMutatedBeforeHydration = true
     set(state => {
       const updatedPlayers = state.players.map(p =>
         p.id === id ? { ...p, isAlive: false } : p
@@ -323,6 +392,7 @@ export const useGameStore = create<GameState>((set, get) => ({
   },
 
   whiteHatGuess: (guessWord: string) => {
+    userMutatedBeforeHydration = true
     const { players } = get()
     const civilianWord = players.find(p => p.role === 'civilian')?.keyword || ''
     const match = isKeywordMatch(guessWord, civilianWord)
@@ -336,17 +406,38 @@ export const useGameStore = create<GameState>((set, get) => ({
     return false
   },
 
-  endGame: () => set(state => ({
-    phase: 'ended',
-    winner: state.winner ?? 'civilian',
-  })),
+  endGame: () => {
+    userMutatedBeforeHydration = true
+    const state = get()
+    const hadNaturalWinner = state.winner !== null
+    const resolvedWinner: Exclude<Winner, null> = state.winner ?? 'civilian'
+    const wasAborted = !hadNaturalWinner
 
-  resetGame: () =>
+    set({
+      phase: 'ended',
+      winner: resolvedWinner,
+      wasAborted,
+    })
+
+    if (hadNaturalWinner && state.roundId && state.players.length >= 3) {
+      void recordMatchVictory({
+        roundId: state.roundId,
+        winner: resolvedWinner,
+        players: state.players,
+        whiteHatGuessedWord: state.whiteHatGuessedWord,
+      })
+    }
+  },
+
+  resetGame: () => {
+    userMutatedBeforeHydration = true
     set(state => ({
+      roundId: '',
       phase: 'setup',
       currentRevealIndex: 0,
       selectedCardIndex: null,
       winner: null,
+      wasAborted: false,
       whiteHatGuessedWord: null,
       eliminatedPlayerId: null,
       players: [],
@@ -354,10 +445,186 @@ export const useGameStore = create<GameState>((set, get) => ({
       previousNames: state.previousNames,
       resetCount: state.resetCount + 1,
       speakingOrder: [],
-    })),
+    }))
+  },
 
   reshuffleSpeakingOrder: () => {
+    userMutatedBeforeHydration = true
     const { players } = get()
     set({ speakingOrder: generateSpeakingOrder(players) })
   },
+
+  refreshCustomKeywords: async () => {
+    const customKeywords = await listCustomKeywords()
+    set(state => {
+      const nextDifficulty =
+        state.settings.difficulty === 'custom' && customKeywords.length === 0
+          ? 'medium'
+          : state.settings.difficulty
+      return {
+        customKeywords,
+        settings:
+          nextDifficulty !== state.settings.difficulty
+            ? { ...state.settings, difficulty: nextDifficulty }
+            : state.settings,
+      }
+    })
+  },
+
+  applyBackupPreferences: (prefs) => {
+    if (!prefs) return
+    setRecentKeywords(prefs.recentKeywords)
+    set(state => {
+      const clamped = clampSettings(prefs.settings)
+      const nextDifficulty =
+        clamped.difficulty === 'custom' && state.customKeywords.length === 0
+          ? 'medium'
+          : clamped.difficulty
+      return {
+        settings: { ...clamped, difficulty: nextDifficulty },
+        previousNames: prefs.previousNames.slice(0, 20),
+      }
+    })
+  },
+
+  resetToFactoryState: () => {
+    setRecentKeywords([])
+    set(state => ({
+      roundId: '',
+      players: [],
+      phase: 'home',
+      currentRevealIndex: 0,
+      selectedCardIndex: null,
+      winner: null,
+      wasAborted: false,
+      whiteHatGuessedWord: null,
+      eliminatedPlayerId: null,
+      previousNames: [],
+      customKeywords: [],
+      settings: { ...DEFAULT_SETTINGS },
+      speakingOrder: [],
+      resetCount: state.resetCount + 1,
+    }))
+  },
 }))
+
+function buildSessionPayload(state: GameState) {
+  return {
+    roundId: state.roundId,
+    phase: state.phase,
+    players: state.players,
+    settings: state.settings,
+    speakingOrder: state.speakingOrder,
+    selectedCardIndex: state.selectedCardIndex,
+    winner: state.winner,
+    wasAborted: state.wasAborted,
+    whiteHatGuessedWord: state.whiteHatGuessedWord,
+    eliminatedPlayerId: state.eliminatedPlayerId,
+    previousNames: state.previousNames,
+    recentKeywords: getRecentKeywords(),
+  }
+}
+
+let persistenceInitialized = false
+
+/**
+ * Khởi tạo đồng bộ 2 chiều giữa Zustand và IndexedDB (Dexie):
+ * - Khôi phục ván đang chơi dở nếu người dùng lỡ reload/đóng trình duyệt.
+ * - Tự động lưu mọi thay đổi trạng thái ván chơi xuống thiết bị.
+ */
+export async function initializeOfflinePersistence(): Promise<void> {
+  if (persistenceInitialized) return
+  persistenceInitialized = true
+
+  void requestPersistentStorage()
+
+  const [savedSession, customKeywords] = await Promise.all([
+    loadActiveSession(),
+    listCustomKeywords(),
+  ])
+
+  if (savedSession && !userMutatedBeforeHydration) {
+    if (Array.isArray(savedSession.recentKeywords)) {
+      setRecentKeywords(savedSession.recentKeywords)
+    }
+
+    const restoredSettings = clampSettings(savedSession.settings ?? DEFAULT_SETTINGS)
+    if (restoredSettings.difficulty === 'custom' && customKeywords.length === 0) {
+      restoredSettings.difficulty = 'medium'
+    }
+
+    const activeRoundPhases = new Set<Phase>(['reveal', 'playing', 'ended'])
+    const hasValidPlayers =
+      Array.isArray(savedSession.players) && savedSession.players.length >= 3
+
+    const restoredPhase: Phase =
+      activeRoundPhases.has(savedSession.phase) && !hasValidPlayers
+        ? 'home'
+        : savedSession.phase
+
+    const validSelectedCard =
+      typeof savedSession.selectedCardIndex === 'number' &&
+      hasValidPlayers &&
+      savedSession.selectedCardIndex >= 0 &&
+      savedSession.selectedCardIndex < savedSession.players.length &&
+      !savedSession.players[savedSession.selectedCardIndex]?.claimed
+        ? savedSession.selectedCardIndex
+        : null
+
+    useGameStore.setState({
+      roundId: hasValidPlayers ? savedSession.roundId || generateRoundId() : '',
+      phase: restoredPhase,
+      players: hasValidPlayers ? savedSession.players : [],
+      settings: restoredSettings,
+      speakingOrder: Array.isArray(savedSession.speakingOrder) ? savedSession.speakingOrder : [],
+      selectedCardIndex: restoredPhase === 'reveal' ? validSelectedCard : null,
+      winner: restoredPhase === 'home' || restoredPhase === 'setup' ? null : savedSession.winner,
+      wasAborted: Boolean(savedSession.wasAborted),
+      whiteHatGuessedWord: savedSession.whiteHatGuessedWord ?? null,
+      eliminatedPlayerId: savedSession.eliminatedPlayerId ?? null,
+      previousNames: Array.isArray(savedSession.previousNames)
+        ? savedSession.previousNames.slice(0, 20)
+        : [],
+      customKeywords,
+      isHydrated: true,
+    })
+
+    // Nếu reload đúng lúc ván vừa thắng tự nhiên, đảm bảo điểm đã được ghi nhận (idempotent)
+    if (
+      restoredPhase === 'ended' &&
+      hasValidPlayers &&
+      !savedSession.wasAborted &&
+      savedSession.winner !== null &&
+      savedSession.roundId
+    ) {
+      void recordMatchVictory({
+        roundId: savedSession.roundId,
+        winner: savedSession.winner,
+        players: savedSession.players,
+        whiteHatGuessedWord: savedSession.whiteHatGuessedWord ?? null,
+      })
+    }
+  } else {
+    useGameStore.setState({
+      customKeywords,
+      isHydrated: true,
+    })
+    if (userMutatedBeforeHydration) {
+      void saveActiveSession(buildSessionPayload(useGameStore.getState()))
+    }
+  }
+
+  let lastSerialized = JSON.stringify(buildSessionPayload(useGameStore.getState()))
+  useGameStore.subscribe(state => {
+    if (!state.isHydrated) return
+    const payload = buildSessionPayload(state)
+    const nextSerialized = JSON.stringify(payload)
+    if (nextSerialized === lastSerialized) return
+    lastSerialized = nextSerialized
+    void saveActiveSession(payload)
+  })
+
+  subscribeDataHub(() => {
+    void useGameStore.getState().refreshCustomKeywords()
+  })
+}

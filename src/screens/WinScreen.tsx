@@ -1,11 +1,14 @@
-import { useEffect, useMemo } from 'react'
-import { motion } from 'motion/react'
+import { useEffect, useMemo, useState } from 'react'
+import { motion, AnimatePresence } from 'motion/react'
 import {
   ArrowCounterClockwise,
   Ghost,
   SlidersHorizontal,
+  Trophy,
 } from '@phosphor-icons/react'
 import { useGameStore, type Role, type Winner } from '../stores/gameStore'
+import { getPointsForRole } from '../db/gameDb'
+import { DataHubModal } from '../components/DataHubModal'
 import {
   playClickSound,
   playFlipSound,
@@ -64,10 +67,12 @@ const ROLE_BADGE_STYLE: Record<
 
 export function WinScreen() {
   const winner = useGameStore(s => s.winner)
+  const wasAborted = useGameStore(s => s.wasAborted)
   const players = useGameStore(s => s.players)
   const resetGame = useGameStore(s => s.resetGame)
   const startGame = useGameStore(s => s.startGame)
   const whiteHatGuessedWord = useGameStore(s => s.whiteHatGuessedWord)
+  const [showDataHub, setShowDataHub] = useState(false)
 
   const outcome: ResolvedWinner = winner ?? 'civilian'
   const theme = OUTCOME_THEMES[outcome]
@@ -83,19 +88,21 @@ export function WinScreen() {
 
   useEffect(() => {
     const timers: ReturnType<typeof setTimeout>[] = []
-    playVictorySound(outcome)
-    firePartyConfetti(outcome)
-    triggerHaptic([30, 40, 50])
+    if (!wasAborted) {
+      playVictorySound(outcome)
+      firePartyConfetti(outcome)
+      triggerHaptic([30, 40, 50])
 
-    if (hasClutchWord) {
-      timers.push(setTimeout(() => playStampSound(), 180))
+      if (hasClutchWord) {
+        timers.push(setTimeout(() => playStampSound(), 180))
+      }
     }
     timers.push(setTimeout(() => playFlipSound(), 240))
 
     return () => {
       for (const t of timers) clearTimeout(t)
     }
-  }, [outcome, hasClutchWord])
+  }, [outcome, hasClutchWord, wasAborted])
 
   const handlePlayAgain = () => {
     playClickSound(1.06)
@@ -122,20 +129,34 @@ export function WinScreen() {
         transition={{ type: 'spring', damping: 22, stiffness: 300 }}
         className="rounded-2xl px-4 py-3.5 text-center shrink-0 flex flex-col items-center gap-2"
         style={{
-          backgroundColor: theme.bg,
+          backgroundColor: wasAborted ? '#F2E9D8' : theme.bg,
           border: `2px solid ${INK}`,
           boxShadow: `0 3px 0 ${INK}`,
         }}
       >
         <div className="flex items-center justify-center gap-2.5">
-          <RoleEmblem role={theme.role} size={36} />
+          {!wasAborted && <RoleEmblem role={theme.role} size={36} />}
           <h1
             className="text-[1.35rem] font-black leading-tight"
             style={{ fontFamily: 'var(--font-display)', color: INK }}
           >
-            {theme.headline}
+            {wasAborted ? 'Ván Đấu Kết Thúc Sớm' : theme.headline}
           </h1>
         </div>
+
+        {wasAborted && (
+          <span
+            className="inline-flex items-center px-3 py-0.5 rounded-full text-[0.72rem] font-extrabold"
+            style={{
+              fontFamily: 'var(--font-display)',
+              backgroundColor: '#FFFFFF',
+              color: '#5B5270',
+              border: `1.5px solid ${INK}`,
+            }}
+          >
+            Huỷ giữa ván · Không tính điểm
+          </span>
+        )}
 
         {whiteHatGuessedWord && (
           <span
@@ -284,6 +305,25 @@ export function WinScreen() {
           >
             Danh sách vai trò ({players.length})
           </span>
+
+          <button
+            type="button"
+            onClick={() => {
+              playClickSound()
+              triggerHaptic(14)
+              setShowDataHub(true)
+            }}
+            className="px-2.5 py-1 rounded-full text-[0.72rem] font-extrabold inline-flex items-center gap-1 cursor-pointer"
+            style={{
+              fontFamily: 'var(--font-display)',
+              backgroundColor: '#FEF3C7',
+              color: INK,
+              border: `1.5px solid ${INK}`,
+            }}
+          >
+            <Trophy size={13} weight="duotone" color="#D97706" />
+            <span>Bảng điểm</span>
+          </button>
         </div>
 
         <div
@@ -299,6 +339,7 @@ export function WinScreen() {
             const badge = ROLE_BADGE_STYLE[p.role]
             const avatar = getAvatarByIndex(idx)
             const avatarSize = singleColumnRoster ? 46 : denseRoster ? 32 : 40
+            const earnedPoints = wasAborted ? 0 : getPointsForRole(p.role, outcome)
 
             return (
               <div
@@ -314,7 +355,7 @@ export function WinScreen() {
               >
                 <AvatarPortrait avatar={avatar} size={avatarSize} dimmed={!p.isAlive} />
 
-                <div className="min-w-0 flex-1 flex items-center justify-between gap-1.5">
+                <div className="min-w-0 flex-1 flex items-center justify-between gap-1">
                   <p
                     className={`font-extrabold truncate leading-tight ${
                       denseRoster ? 'text-[0.74rem]' : 'text-[0.82rem]'
@@ -328,18 +369,33 @@ export function WinScreen() {
                     {p.name}
                   </p>
 
-                  <span
-                    className={`shrink-0 font-extrabold rounded-md ${
-                      denseRoster ? 'text-[0.6rem] px-1.5 py-0.5' : 'text-[0.66rem] px-2 py-0.5'
-                    }`}
-                    style={{
-                      fontFamily: 'var(--font-display)',
-                      backgroundColor: badge.bg,
-                      color: badge.color,
-                    }}
-                  >
-                    {badge.label}
-                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {earnedPoints > 0 && (
+                      <span
+                        className="px-1.5 py-0.5 rounded-md text-[0.6rem] font-black"
+                        style={{
+                          fontFamily: 'var(--font-display)',
+                          backgroundColor: '#FEF3C7',
+                          color: '#92400E',
+                          border: '1px solid rgba(217, 119, 6, 0.45)',
+                        }}
+                      >
+                        +{earnedPoints}đ
+                      </span>
+                    )}
+                    <span
+                      className={`shrink-0 font-extrabold rounded-md ${
+                        denseRoster ? 'text-[0.6rem] px-1.5 py-0.5' : 'text-[0.66rem] px-2 py-0.5'
+                      }`}
+                      style={{
+                        fontFamily: 'var(--font-display)',
+                        backgroundColor: badge.bg,
+                        color: badge.color,
+                      }}
+                    >
+                      {badge.label}
+                    </span>
+                  </div>
                 </div>
               </div>
             )
@@ -367,6 +423,12 @@ export function WinScreen() {
           <span>Chơi lại</span>
         </button>
       </div>
+
+      <AnimatePresence>
+        {showDataHub && (
+          <DataHubModal initialTab="scores" onClose={() => setShowDataHub(false)} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
