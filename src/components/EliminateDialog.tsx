@@ -306,6 +306,7 @@ export function RoleRevealDialog({
                 if (e.key === 'Enter') handleGuessSubmit()
               }}
               placeholder="Nhập từ Dân thường..."
+              maxLength={50}
               autoFocus
               autoComplete="off"
               className="w-full px-3.5 py-2 rounded-xl text-center text-sm font-bold outline-none select-text"

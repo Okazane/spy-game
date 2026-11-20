@@ -9,8 +9,10 @@ import {
   type CustomKeywordRecord,
   listCustomKeywords,
   loadActiveSession,
+  MAX_PLAYER_NAME_LENGTH,
   recordMatchVictory,
   requestPersistentStorage,
+  sanitizeSafeText,
   saveActiveSession,
   subscribeDataHub,
 } from '../db/gameDb.ts'
@@ -340,10 +342,11 @@ export const useGameStore = create<GameState>((set, get) => ({
   // Người chơi nhập tên và xác nhận nhận bài
   claimCard: (index, name) => {
     userMutatedBeforeHydration = true
+    const safeName = sanitizeSafeText(name, MAX_PLAYER_NAME_LENGTH) || `Người ${index + 1}`
     set(state => {
       const players = state.players.map((p, i) =>
         i === index
-          ? { ...p, name: name.trim() || `Người ${index + 1}`, claimed: true }
+          ? { ...p, name: safeName, claimed: true }
           : p
       )
       const allClaimed = players.length > 0 && players.every(p => p.claimed)
@@ -399,7 +402,7 @@ export const useGameStore = create<GameState>((set, get) => ({
     if (match) {
       set({
         winner: 'white-hat',
-        whiteHatGuessedWord: guessWord.trim(),
+        whiteHatGuessedWord: sanitizeSafeText(guessWord, 60) || civilianWord,
       })
       return true
     }
@@ -557,10 +560,20 @@ export async function initializeOfflinePersistence(): Promise<void> {
     const hasValidPlayers =
       Array.isArray(savedSession.players) && savedSession.players.length >= 3
 
-    const restoredPhase: Phase =
+    let restoredPhase: Phase =
       activeRoundPhases.has(savedSession.phase) && !hasValidPlayers
         ? 'home'
         : savedSession.phase
+
+    // Nếu reload đúng trong khoảng chuyển cảnh sau khi Mũ Trắng đã đoán trúng từ (hoặc đã có winner mà không chờ mở vai)
+    if (
+      restoredPhase === 'playing' &&
+      hasValidPlayers &&
+      savedSession.winner !== null &&
+      (savedSession.whiteHatGuessedWord !== null || !savedSession.eliminatedPlayerId)
+    ) {
+      restoredPhase = 'ended'
+    }
 
     const validSelectedCard =
       typeof savedSession.selectedCardIndex === 'number' &&

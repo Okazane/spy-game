@@ -192,14 +192,22 @@ export function DataHubModal({ initialTab = 'scores', onClose }: DataHubModalPro
     playPopSound(-1)
     triggerHaptic(14)
     setKwFeedback(null)
-    await deleteCustomKeywordPair(id)
+    try {
+      await deleteCustomKeywordPair(id)
+    } catch {
+      setKwFeedback({ type: 'err', text: 'Không thể xoá cặp từ trên thiết bị này.' })
+    }
   }
 
   const handleResetScores = async () => {
     playStampSound()
     triggerHaptic(25)
-    await resetScoreboard()
-    setConfirmResetScores(false)
+    try {
+      await resetScoreboard()
+      setConfirmResetScores(false)
+    } catch {
+      setConfirmResetScores(false)
+    }
   }
 
   const handleExportJson = async () => {
@@ -301,6 +309,11 @@ export function DataHubModal({ initialTab = 'scores', onClose }: DataHubModalPro
       setBackupFeedback({
         type: 'ok',
         text: 'Đã xoá toàn bộ dữ liệu cục bộ trên máy này.',
+      })
+    } catch {
+      setBackupFeedback({
+        type: 'err',
+        text: 'Không thể xoá dữ liệu cục bộ trên thiết bị này.',
       })
     } finally {
       setIsBusy(false)

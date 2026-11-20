@@ -23,6 +23,13 @@ const VALID_PHASES = new Set<Phase>(['home', 'setup', 'reveal', 'playing', 'ende
 const VALID_DIFFICULTIES = new Set<Difficulty>(['easy', 'medium', 'hard', 'custom'])
 // eslint-disable-next-line no-control-regex
 const CONTROL_CHAR_RE = /[\u0000-\u001F\u007F]/
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHAR_GLOBAL_RE = /[\u0000-\u001F\u007F]/g
+const SESSION_FALLBACK_KEY = 'spy_game_active_session_v1'
+
+export function sanitizeSafeText(raw: string, maxLen: number): string {
+  return raw.replace(CONTROL_CHAR_GLOBAL_RE, ' ').replace(/\s+/g, ' ').trim().slice(0, maxLen)
+}
 
 export interface PersistedSession {
   id: 'active'
@@ -117,17 +124,82 @@ export class SpyGameDB extends Dexie {
 }
 
 let dbInstance: SpyGameDB | null = null
+let idbBlocked = false
+
+// Graceful in-memory fallback when IndexedDB is unavailable or blocked (Private Mode / SecurityError / Node.js)
+let memSession: PersistedSession | null = null
+let memCustomKeywords: CustomKeywordRecord[] = []
+let memScores = new Map<string, ScoreRecord>()
+let memHistory: MatchHistoryRecord[] = []
+
+function writeSessionMirror(session: PersistedSession): void {
+  memSession = session
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage?.setItem(SESSION_FALLBACK_KEY, JSON.stringify(session))
+  } catch {
+    // Ignore storage quota or SecurityError in restricted private contexts
+  }
+}
+
+function readSessionMirror(): PersistedSession | null {
+  if (memSession && VALID_PHASES.has(memSession.phase)) return memSession
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.localStorage?.getItem(SESSION_FALLBACK_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as PersistedSession
+    if (parsed && typeof parsed === 'object' && VALID_PHASES.has(parsed.phase)) {
+      memSession = parsed
+      return parsed
+    }
+  } catch {
+    // Ignore storage read errors
+  }
+  return null
+}
+
+function clearSessionMirror(): void {
+  memSession = null
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage?.removeItem(SESSION_FALLBACK_KEY)
+  } catch {
+    // Ignore storage remove errors
+  }
+}
 
 export function hasIndexedDB(): boolean {
-  return typeof indexedDB !== 'undefined'
+  if (idbBlocked) return false
+  try {
+    return typeof indexedDB !== 'undefined' && indexedDB !== null
+  } catch {
+    idbBlocked = true
+    return false
+  }
 }
 
 export function getDb(): SpyGameDB | null {
   if (!hasIndexedDB()) return null
-  if (!dbInstance) {
-    dbInstance = new SpyGameDB()
+  try {
+    if (!dbInstance) {
+      dbInstance = new SpyGameDB()
+    }
+    return dbInstance
+  } catch {
+    idbBlocked = true
+    dbInstance = null
+    return null
   }
-  return dbInstance
+}
+
+export function resetGameDbForTests(): void {
+  dbInstance = null
+  idbBlocked = false
+  memSession = null
+  memCustomKeywords = []
+  memScores = new Map()
+  memHistory = []
 }
 
 /**
@@ -209,10 +281,7 @@ export function computeMatchScoreUpdate(
 
   for (let i = 0; i < input.players.length; i++) {
     const p = input.players[i]
-    const displayName = (p.name.trim().replace(/\s+/g, ' ') || `Người ${i + 1}`).slice(
-      0,
-      MAX_PLAYER_NAME_LENGTH
-    )
+    const displayName = sanitizeSafeText(p.name, MAX_PLAYER_NAME_LENGTH) || `Người ${i + 1}`
     const key = normalizeKeywordText(displayName)
     const delta = getPointsForRole(p.role, input.winner)
     const isWinner = delta > 0
@@ -253,8 +322,13 @@ export function computeMatchScoreUpdate(
     scoreMap.set(key, nextRecord)
   }
 
-  const civilianKeyword = input.players.find(p => p.role === 'civilian')?.keyword || '—'
-  const spyKeyword = input.players.find(p => p.role === 'spy')?.keyword || '—'
+  const rawCivKeyword = input.players.find(p => p.role === 'civilian')?.keyword || ''
+  const rawSpyKeyword = input.players.find(p => p.role === 'spy')?.keyword || ''
+  const civilianKeyword = sanitizeSafeText(rawCivKeyword, 60) || '—'
+  const spyKeyword = sanitizeSafeText(rawSpyKeyword, 60) || '—'
+  const cleanGuess = input.whiteHatGuessedWord
+    ? sanitizeSafeText(input.whiteHatGuessedWord, 60) || null
+    : null
 
   const historyEntry: MatchHistoryRecord = {
     id: input.roundId,
@@ -263,7 +337,7 @@ export function computeMatchScoreUpdate(
     civilianKeyword,
     spyKeyword,
     totalPlayers: input.players.length,
-    whiteHatGuessedWord: input.whiteHatGuessedWord ? input.whiteHatGuessedWord.trim() : null,
+    whiteHatGuessedWord: cleanGuess,
     awardedPlayers,
   }
 
@@ -323,14 +397,15 @@ export function validateCustomKeywordInput(
 let sessionSaveChain: Promise<void> = Promise.resolve()
 
 export function saveActiveSession(session: Omit<PersistedSession, 'id' | 'updatedAt'>): Promise<void> {
-  const db = getDb()
-  if (!db) return Promise.resolve()
-
   const payload: PersistedSession = {
     ...session,
     id: 'active',
     updatedAt: Date.now(),
   }
+  writeSessionMirror(payload)
+
+  const db = getDb()
+  if (!db) return Promise.resolve()
 
   sessionSaveChain = sessionSaveChain
     .catch(() => undefined)
@@ -338,6 +413,7 @@ export function saveActiveSession(session: Omit<PersistedSession, 'id' | 'update
       await db.session.put(payload)
     })
     .catch(err => {
+      idbBlocked = true
       console.warn('Unable to persist session in IndexedDB:', err)
     })
 
@@ -346,26 +422,32 @@ export function saveActiveSession(session: Omit<PersistedSession, 'id' | 'update
 
 export async function loadActiveSession(): Promise<PersistedSession | null> {
   const db = getDb()
-  if (!db) return null
+  if (!db) return readSessionMirror()
   try {
     const record = await db.session.get('active')
-    if (!record || !VALID_PHASES.has(record.phase)) return null
+    if (!record || !VALID_PHASES.has(record.phase)) return readSessionMirror()
+    memSession = record
     return record
   } catch (err) {
+    idbBlocked = true
     console.warn('Unable to load session from IndexedDB:', err)
-    return null
+    return readSessionMirror()
   }
 }
 
 export async function listCustomKeywords(): Promise<CustomKeywordRecord[]> {
   const db = getDb()
-  if (!db) return []
+  if (!db) {
+    return [...memCustomKeywords].sort((a, b) => b.createdAt - a.createdAt)
+  }
   try {
     const rows = await db.customKeywords.orderBy('createdAt').reverse().toArray()
+    memCustomKeywords = rows
     return rows
   } catch (err) {
+    idbBlocked = true
     console.warn('Unable to list custom keywords:', err)
-    return []
+    return [...memCustomKeywords].sort((a, b) => b.createdAt - a.createdAt)
   }
 }
 
@@ -373,11 +455,6 @@ export async function addCustomKeywordPair(
   rawCivilian: string,
   rawSpy: string
 ): Promise<{ ok: true; record: CustomKeywordRecord; all: CustomKeywordRecord[] } | { ok: false; error: string }> {
-  const db = getDb()
-  if (!db) {
-    return { ok: false, error: 'Trình duyệt hiện tại không hỗ trợ lưu trữ IndexedDB.' }
-  }
-
   const existing = await listCustomKeywords()
   const checked = validateCustomKeywordInput(rawCivilian, rawSpy, existing)
   if (!checked.ok) return checked
@@ -390,16 +467,36 @@ export async function addCustomKeywordPair(
     createdAt: Date.now(),
   }
 
-  await db.customKeywords.put(record)
+  memCustomKeywords = [record, ...memCustomKeywords.filter(k => k.canonicalKey !== record.canonicalKey)]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, MAX_CUSTOM_KEYWORDS)
+
+  const db = getDb()
+  if (db) {
+    try {
+      await db.customKeywords.put(record)
+    } catch (err) {
+      idbBlocked = true
+      console.warn('IndexedDB unavailable for custom keyword; stored in session fallback:', err)
+    }
+  }
+
   const all = await listCustomKeywords()
   notifyDataHub()
   return { ok: true, record, all }
 }
 
 export async function deleteCustomKeywordPair(id: string): Promise<CustomKeywordRecord[]> {
+  memCustomKeywords = memCustomKeywords.filter(k => k.id !== id)
   const db = getDb()
-  if (!db) return []
-  await db.customKeywords.delete(id)
+  if (db) {
+    try {
+      await db.customKeywords.delete(id)
+    } catch (err) {
+      idbBlocked = true
+      console.warn('Unable to delete custom keyword from IndexedDB:', err)
+    }
+  }
   const all = await listCustomKeywords()
   notifyDataHub()
   return all
@@ -407,14 +504,35 @@ export async function deleteCustomKeywordPair(id: string): Promise<CustomKeyword
 
 const inFlightRounds = new Set<string>()
 
+function applyFallbackVictory(input: RecordMatchInput): MatchHistoryRecord {
+  const existingHistory = memHistory.find(h => h.id === input.roundId)
+  if (existingHistory) return existingHistory
+
+  const { updatedScores, historyEntry } = computeMatchScoreUpdate(
+    Array.from(memScores.values()),
+    input
+  )
+  const cappedScores = sortScores(updatedScores).slice(0, MAX_SCORE_ENTRIES)
+  memScores = new Map(cappedScores.map(s => [s.id, s]))
+  memHistory = [historyEntry, ...memHistory]
+    .sort((a, b) => b.endedAt - a.endedAt)
+    .slice(0, MAX_MATCH_HISTORY)
+  return historyEntry
+}
+
 /**
  * Ghi nhận điểm thưởng & lịch sử ván đấu (Idempotent 100% theo `roundId`).
  */
 export async function recordMatchVictory(input: RecordMatchInput): Promise<MatchHistoryRecord | null> {
   if (!input.roundId || input.players.length < 3) return null
-  const db = getDb()
-  if (!db) return null
   if (inFlightRounds.has(input.roundId)) return null
+
+  const db = getDb()
+  if (!db) {
+    const savedFallback = applyFallbackVictory(input)
+    notifyDataHub()
+    return savedFallback
+  }
 
   inFlightRounds.add(input.roundId)
   try {
@@ -424,8 +542,12 @@ export async function recordMatchVictory(input: RecordMatchInput): Promise<Match
 
       const existingScores = await db.scores.toArray()
       const { updatedScores, historyEntry } = computeMatchScoreUpdate(existingScores, input)
+      const cappedScores = sortScores(updatedScores).slice(0, MAX_SCORE_ENTRIES)
 
-      await db.scores.bulkPut(updatedScores)
+      if (updatedScores.length > MAX_SCORE_ENTRIES) {
+        await db.scores.clear()
+      }
+      await db.scores.bulkPut(cappedScores)
       await db.history.put(historyEntry)
 
       const allHistory = await db.history.orderBy('endedAt').reverse().toArray()
@@ -434,14 +556,22 @@ export async function recordMatchVictory(input: RecordMatchInput): Promise<Match
         await db.history.bulkDelete(overflowIds)
       }
 
+      memScores = new Map(cappedScores.map(s => [s.id, s]))
+      memHistory = [historyEntry, ...allHistory.filter(h => h.id !== historyEntry.id)]
+        .sort((a, b) => b.endedAt - a.endedAt)
+        .slice(0, MAX_MATCH_HISTORY)
+
       return historyEntry
     })
 
     notifyDataHub()
     return saved
   } catch (err) {
-    console.warn('Unable to record match victory:', err)
-    return null
+    idbBlocked = true
+    console.warn('Unable to record match victory in IndexedDB; using fallback:', err)
+    const fallbackSaved = applyFallbackVictory(input)
+    notifyDataHub()
+    return fallbackSaved
   } finally {
     inFlightRounds.delete(input.roundId)
   }
@@ -452,41 +582,71 @@ export async function getScoreboardSnapshot(): Promise<{
   history: MatchHistoryRecord[]
 }> {
   const db = getDb()
-  if (!db) return { scores: [], history: [] }
+  if (!db) {
+    return {
+      scores: sortScores(Array.from(memScores.values())),
+      history: [...memHistory].sort((a, b) => b.endedAt - a.endedAt).slice(0, MAX_MATCH_HISTORY),
+    }
+  }
   try {
     const [rawScores, history] = await Promise.all([
       db.scores.toArray(),
       db.history.orderBy('endedAt').reverse().limit(MAX_MATCH_HISTORY).toArray(),
     ])
+    const sorted = sortScores(rawScores)
+    memScores = new Map(sorted.map(s => [s.id, s]))
+    memHistory = history
     return {
-      scores: sortScores(rawScores),
+      scores: sorted,
       history,
     }
   } catch (err) {
+    idbBlocked = true
     console.warn('Unable to read scoreboard snapshot:', err)
-    return { scores: [], history: [] }
+    return {
+      scores: sortScores(Array.from(memScores.values())),
+      history: [...memHistory].sort((a, b) => b.endedAt - a.endedAt).slice(0, MAX_MATCH_HISTORY),
+    }
   }
 }
 
 export async function resetScoreboard(): Promise<void> {
+  memScores.clear()
+  memHistory = []
   const db = getDb()
-  if (!db) return
-  await db.transaction('rw', db.scores, db.history, async () => {
-    await db.scores.clear()
-    await db.history.clear()
-  })
+  if (db) {
+    try {
+      await db.transaction('rw', db.scores, db.history, async () => {
+        await db.scores.clear()
+        await db.history.clear()
+      })
+    } catch (err) {
+      idbBlocked = true
+      console.warn('Unable to reset scoreboard in IndexedDB:', err)
+    }
+  }
   notifyDataHub()
 }
 
 export async function clearAllDeviceData(): Promise<void> {
+  clearSessionMirror()
+  memCustomKeywords = []
+  memScores.clear()
+  memHistory = []
+
   const db = getDb()
   if (db) {
-    await db.transaction('rw', db.session, db.customKeywords, db.scores, db.history, async () => {
-      await db.session.clear()
-      await db.customKeywords.clear()
-      await db.scores.clear()
-      await db.history.clear()
-    })
+    try {
+      await db.transaction('rw', db.session, db.customKeywords, db.scores, db.history, async () => {
+        await db.session.clear()
+        await db.customKeywords.clear()
+        await db.scores.clear()
+        await db.history.clear()
+      })
+    } catch (err) {
+      idbBlocked = true
+      console.warn('Unable to wipe IndexedDB tables:', err)
+    }
   }
   notifyDataHub()
 }
@@ -938,9 +1098,21 @@ export async function createBackupPayload(preferences?: {
     ...(preferences
       ? {
           preferences: {
-            settings: preferences.settings,
-            previousNames: preferences.previousNames.slice(0, 20),
-            recentKeywords: preferences.recentKeywords.slice(-MAX_RECENT_KEYWORDS),
+            settings: sanitizeBackupSettings({
+              totalPlayers: preferences.settings.totalPlayers,
+              spyCount: preferences.settings.spyCount,
+              whiteHatCount: preferences.settings.whiteHatCount,
+              difficulty: preferences.settings.difficulty,
+              hideRole: preferences.settings.hideRole,
+              includeCustomKeywords: preferences.settings.includeCustomKeywords ?? true,
+            }),
+            previousNames: preferences.previousNames
+              .slice(0, 20)
+              .map(n => sanitizeSafeText(n, MAX_PLAYER_NAME_LENGTH)),
+            recentKeywords: preferences.recentKeywords
+              .map(k => sanitizeSafeText(k, 100))
+              .filter(k => k.includes('|'))
+              .slice(-MAX_RECENT_KEYWORDS),
           },
         }
       : {}),
@@ -948,26 +1120,38 @@ export async function createBackupPayload(preferences?: {
 }
 
 export async function importValidatedBackup(backup: SpyGameBackupV1): Promise<void> {
+  memCustomKeywords = [...backup.customKeywords]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, MAX_CUSTOM_KEYWORDS)
+  const cappedScores = sortScores(backup.scores).slice(0, MAX_SCORE_ENTRIES)
+  memScores = new Map(cappedScores.map(s => [s.id, s]))
+  memHistory = [...backup.history]
+    .sort((a, b) => b.endedAt - a.endedAt)
+    .slice(0, MAX_MATCH_HISTORY)
+
   const db = getDb()
-  if (!db) {
-    throw new BackupValidationError('Trình duyệt hiện tại không hỗ trợ lưu trữ IndexedDB.')
+  if (db) {
+    try {
+      await db.transaction('rw', db.customKeywords, db.scores, db.history, async () => {
+        await db.customKeywords.clear()
+        await db.scores.clear()
+        await db.history.clear()
+
+        if (memCustomKeywords.length > 0) {
+          await db.customKeywords.bulkPut(memCustomKeywords)
+        }
+        if (cappedScores.length > 0) {
+          await db.scores.bulkPut(cappedScores)
+        }
+        if (memHistory.length > 0) {
+          await db.history.bulkPut(memHistory)
+        }
+      })
+    } catch (err) {
+      idbBlocked = true
+      console.warn('IndexedDB unavailable during backup import; restored to session fallback:', err)
+    }
   }
-
-  await db.transaction('rw', db.customKeywords, db.scores, db.history, async () => {
-    await db.customKeywords.clear()
-    await db.scores.clear()
-    await db.history.clear()
-
-    if (backup.customKeywords.length > 0) {
-      await db.customKeywords.bulkPut(backup.customKeywords)
-    }
-    if (backup.scores.length > 0) {
-      await db.scores.bulkPut(backup.scores)
-    }
-    if (backup.history.length > 0) {
-      await db.history.bulkPut(backup.history)
-    }
-  })
 
   notifyDataHub()
 }

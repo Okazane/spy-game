@@ -211,7 +211,13 @@ export function GameScreen() {
   const endGame = useGameStore(s => s.endGame)
 
   const [pendingPlayer, setPendingPlayer] = useState<Player | null>(null)
-  const [revealedPlayer, setRevealedPlayer] = useState<Player | null>(null)
+  const [revealedPlayer, setRevealedPlayer] = useState<Player | null>(() => {
+    const snap = useGameStore.getState()
+    if (snap.phase === 'playing' && snap.winner !== null && snap.eliminatedPlayerId) {
+      return snap.players.find(p => p.id === snap.eliminatedPlayerId && !p.isAlive) ?? null
+    }
+    return null
+  })
   const [showEndConfirm, setShowEndConfirm] = useState(false)
   const [timerSeconds, setTimerSeconds] = useState(DEFAULT_TIMER_SECONDS)
   const [timerRunning, setTimerRunning] = useState(false)

@@ -12,13 +12,24 @@ import {
   setRecentKeywords,
 } from '../src/data/keywords.ts'
 import {
+  addCustomKeywordPair,
   BACKUP_APP_ID,
   BACKUP_SCHEMA_VERSION,
   BackupValidationError,
+  clearAllDeviceData,
   computeMatchScoreUpdate,
+  createBackupPayload,
+  deleteCustomKeywordPair,
+  getScoreboardSnapshot,
+  importValidatedBackup,
+  loadActiveSession,
   MAX_BACKUP_BYTES,
   MAX_MATCH_HISTORY,
   parseAndValidateBackupJson,
+  recordMatchVictory,
+  resetGameDbForTests,
+  resetScoreboard,
+  saveActiveSession,
   validateBackupPayload,
   validateCustomKeywordInput,
 } from '../src/db/gameDb.ts'
@@ -444,5 +455,125 @@ test('Offline PWA hygiene: zero external Google Fonts in index.html & valid 192/
     assert.equal(buf[3], 0x47)
     assert.equal(buf.readUInt32BE(16), dim)
     assert.equal(buf.readUInt32BE(20), dim)
+  }
+})
+
+test('Blocked IndexedDB (SecurityError / Private Mode) fallback & JSON Export/Import round-trip', async () => {
+  const hadIndexedDB = Object.prototype.hasOwnProperty.call(globalThis, 'indexedDB')
+  const prevIndexedDB = hadIndexedDB ? globalThis.indexedDB : undefined
+
+  Object.defineProperty(globalThis, 'indexedDB', {
+    configurable: true,
+    get() {
+      const err = new Error('The operation is insecure.')
+      err.name = 'SecurityError'
+      throw err
+    },
+  })
+
+  try {
+    resetGameDbForTests()
+
+    // 1. Add custom keyword pair with blocked IndexedDB -> succeeds in fallback store
+    const added = await addCustomKeywordPair('Bánh mì chảo', 'Bò né')
+    assert.equal(added.ok, true)
+    if (added.ok) {
+      assert.equal(added.all.length, 1)
+    }
+
+    // 2. Record match victory with control chars (\t) in White-Hat guess & player name -> sanitized & idempotent
+    const players = [
+      makePlayer('p1', 'civilian', true, 'Minh\tAnh', 'Bánh mì chảo'),
+      makePlayer('p2', 'civilian', false, 'Lan', 'Bánh mì chảo'),
+      makePlayer('p3', 'spy', false, 'Hùng', 'Bò né'),
+      makePlayer('p4', 'white-hat', false, 'Tuấn', ''),
+    ]
+    const saved1 = await recordMatchVictory({
+      roundId: 'rnd_fallback_1',
+      winner: 'white-hat',
+      players,
+      whiteHatGuessedWord: 'Bánh\tmì chảo',
+    })
+    const saved2 = await recordMatchVictory({
+      roundId: 'rnd_fallback_1',
+      winner: 'white-hat',
+      players,
+      whiteHatGuessedWord: 'Bánh\tmì chảo',
+    })
+    assert.ok(saved1)
+    assert.equal(saved1?.whiteHatGuessedWord, 'Bánh mì chảo')
+    assert.equal(saved2?.id, 'rnd_fallback_1')
+
+    const snap = await getScoreboardSnapshot()
+    assert.equal(snap.history.length, 1)
+    assert.equal(snap.scores.find(s => s.name === 'Tuấn')?.points, 4)
+
+    // 3. Session save/load fallback
+    await saveActiveSession({
+      roundId: 'rnd_sess_1',
+      phase: 'playing',
+      players,
+      settings: {
+        totalPlayers: 4,
+        spyCount: 1,
+        whiteHatCount: 1,
+        difficulty: 'custom',
+        hideRole: true,
+        includeCustomKeywords: true,
+      },
+      speakingOrder: ['p1', 'p3', 'p2', 'p4'],
+      selectedCardIndex: null,
+      winner: null,
+      wasAborted: false,
+      whiteHatGuessedWord: null,
+      eliminatedPlayerId: null,
+      previousNames: ['Minh\tAnh', 'Lan'],
+      recentKeywords: ['bánh mì chảo|bò né'],
+    })
+    const loadedSession = await loadActiveSession()
+    assert.equal(loadedSession?.roundId, 'rnd_sess_1')
+
+    // 4. Export -> Strict Validate -> Wipe -> Import round-trip
+    const backup = await createBackupPayload({
+      settings: {
+        totalPlayers: 4,
+        spyCount: 1,
+        whiteHatCount: 1,
+        difficulty: 'custom',
+        hideRole: true,
+        includeCustomKeywords: true,
+      },
+      previousNames: ['Minh\tAnh', 'Lan'],
+      recentKeywords: ['bánh mì chảo|bò né'],
+    })
+    const validated = parseAndValidateBackupJson(JSON.stringify(backup))
+    assert.equal(validated.customKeywords.length, 1)
+    assert.equal(validated.history.length, 1)
+    assert.equal(validated.preferences?.previousNames[0], 'Minh Anh')
+
+    await clearAllDeviceData()
+    assert.equal((await getScoreboardSnapshot()).scores.length, 0)
+
+    await importValidatedBackup(validated)
+    const restoredSnap = await getScoreboardSnapshot()
+    assert.equal(restoredSnap.scores.find(s => s.name === 'Tuấn')?.points, 4)
+
+    if (added.ok) {
+      const remaining = await deleteCustomKeywordPair(added.record.id)
+      assert.equal(remaining.length, 0)
+    }
+    await resetScoreboard()
+    assert.equal((await getScoreboardSnapshot()).history.length, 0)
+  } finally {
+    resetGameDbForTests()
+    if (hadIndexedDB) {
+      Object.defineProperty(globalThis, 'indexedDB', {
+        configurable: true,
+        writable: true,
+        value: prevIndexedDB,
+      })
+    } else {
+      delete globalThis.indexedDB
+    }
   }
 })
